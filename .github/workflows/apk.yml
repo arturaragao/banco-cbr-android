@@ -1,0 +1,80 @@
+name: APK Banco CBR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: banco-cbr-apk
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+      KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+      - name: Instalar SDK 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Preparar wrapper
+        shell: bash
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.13 --distribution-type bin --no-daemon
+          fi
+          chmod +x gradlew
+          ./gradlew --version
+      - name: Preparar assinatura
+        id: signing
+        shell: bash
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASS" ]; then
+            umask 077
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > keystore.p12
+            keytool -list -storetype PKCS12 -keystore keystore.p12 -storepass:env KEYSTORE_PASS -alias bcbr > /dev/null
+            echo 'task=assembleRelease' >> "$GITHUB_OUTPUT"
+            echo 'variant=release' >> "$GITHUB_OUTPUT"
+          else
+            echo 'task=assembleDebug' >> "$GITHUB_OUTPUT"
+            echo 'variant=debug' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verificar e gerar APK
+        env:
+          BUILD_TASK: ${{ steps.signing.outputs.task }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: >-
+          ./gradlew --no-daemon testDebugUnitTest "$BUILD_TASK"
+          -PversionCode="$VERSION_CODE" -PversionName="1.0.$VERSION_CODE"
+      - name: Nomear APK
+        env:
+          VARIANT: ${{ steps.signing.outputs.variant }}
+        run: cp "app/build/outputs/apk/$VARIANT/app-$VARIANT.apk" banco-cbr.apk
+      - name: Publicar latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: latest
+          make_latest: true
+          target_commitish: ${{ github.sha }}
+          files: banco-cbr.apk
+          fail_on_unmatched_files: true
+          body: Banco CBR 1.0.${{ github.run_number }} — APK ${{ steps.signing.outputs.variant }}.
+      - name: Remover keystore temporário
+        if: always()
+        run: rm -f -- keystore.p12

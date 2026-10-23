@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_background" android:orientation="vertical" android:padding="12dp">
+    <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_tasks_name" android:textColor="@color/foreground" android:textSize="15sp" android:textStyle="bold" />
+    <TextView android:id="@+id/widget_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp" android:text="@string/no_data" android:textColor="@color/muted" android:textSize="11sp" android:maxLines="3" />
+    <ListView android:id="@+id/task_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:divider="@android:color/transparent" android:dividerHeight="2dp" />
+    <TextView android:id="@+id/task_empty" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/no_data" android:textColor="@color/muted" android:textSize="12sp" />
+</LinearLayout>

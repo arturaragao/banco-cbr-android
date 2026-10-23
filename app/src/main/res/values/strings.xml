@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Banco CBR</string>
+    <string name="widget_add_name">Adicionar tarefa</string>
+    <string name="widget_tasks_name">Tarefas de hoje</string>
+    <string name="widget_calendar_name">Calendário</string>
+    <string name="add_task">+ tarefa</string>
+    <string name="shortcut_task">Nova tarefa</string>
+    <string name="shortcut_ri">RI do dia</string>
+    <string name="no_data">abra o app para carregar</string>
+    <string name="no_tasks">Nenhuma tarefa pendente</string>
+    <string name="channel_name">Avisos</string>
+</resources>

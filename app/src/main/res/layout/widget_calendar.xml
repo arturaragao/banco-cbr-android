@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_background" android:orientation="vertical" android:padding="10dp">
+    <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_calendar_name" android:textColor="@color/foreground" android:textSize="15sp" android:textStyle="bold" />
+    <TextView android:id="@+id/calendar_hint" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/no_data" android:textColor="@color/muted" android:textSize="10sp" />
+    <LinearLayout android:id="@+id/weekdays" android:layout_width="match_parent" android:layout_height="20dp" android:orientation="horizontal" />
+    <LinearLayout android:id="@+id/calendar_grid" android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:orientation="vertical" />
+</LinearLayout>

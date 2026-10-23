@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#0f172a</color>
+    <color name="foreground">#f1f5f9</color>
+    <color name="muted">#cbd5e1</color>
+    <color name="study">#60a5fa</color>
+    <color name="tool">#fbbf24</color>
+    <color name="task">#4ade80</color>
+</resources>

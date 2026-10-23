@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="tarefa" android:enabled="true" android:icon="@drawable/ic_logo" android:shortcutShortLabel="@string/shortcut_task">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"
+            android:targetClass="io.github.arturaragao.bancocbr.MainActivity" android:data="bancocbr://abrir?acao=tarefa">
+            <extra android:name="acao" android:value="tarefa" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="ri" android:enabled="true" android:icon="@drawable/ic_logo" android:shortcutShortLabel="@string/shortcut_ri">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"
+            android:targetClass="io.github.arturaragao.bancocbr.MainActivity" android:data="bancocbr://abrir?acao=ri">
+            <extra android:name="acao" android:value="ri" />
+        </intent>
+    </shortcut>
+</shortcuts>
