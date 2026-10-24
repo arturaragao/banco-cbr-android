@@ -44,12 +44,14 @@ Formato do resumo (de hoje até +35 dias):
 - Atualização automática do app (24/10/2026): sem baixar à mão, sem tokens.
 - Widget/atalho "Ideia" (24/10/2026): ditar ideia de ferramenta no celular sem abrir o Claude (sem tokens), confirmar o texto, gravar no GitHub; o PC oferece no início da sessão.
 - Ideia (24/10/2026, 2º pedido): gravar até ele tocar para parar (pausas na fala não encerram), painel mais bonito, versão do APK ao lado da do site; ideias viram tarefas na aba Semana (lista automática, sem tokens).
+- Anexos no widget Ideia e Compartilhar (24/10/2026, no lugar do bot de Telegram).
 - APK grátis pelo GitHub Releases; sem chaves no código; sem commit/push nesta criação.
 
 ## Estado atual
 Implementação inicial completa, workflow e testes da lógica do resumo/avisos preparados. A máquina de criação tem somente Java 8, sem Gradle e sem Android SDK; build Android e testes ainda dependem da primeira execução no Actions. A integração depende de o site chamar a ponte; este projeto não altera o site. Validar aparência dos widgets e entrega de alarmes em aparelho real após instalar o APK. Widget Ideia: falta testar no aparelho (voz → diálogo → linha em `banco-cbr-app/ideias/caixa.md`); o lado do PC foi testado com uma ideia gravada pela API no mesmo formato.
 
 ## Histórico
+- 2026-10-24: versão 1.5: anexos no widget Ideia (Compartilhar → Banco CBR de qualquer app, botão 📎 Anexar; cópia local, sobem para `ideias/anexos/` antes da linha, sufixo " · anexos: ...", limite 15 MB, Uri persistente/cópia no rascunho). 1.4: confere atualização a cada abertura (1x/min) e de 15 em 15 min. Feito pelo Codex, revisado pelo Codex medio; CI verde; não testado em aparelho.
 - 2026-10-24: versão 1.3 (CI usa 1.3.N): tela própria do widget Ideia (gravação contínua até ⏸, texto ao vivo, cartão no rodapé), permissão RECORD_AUDIO, `<queries>` RecognitionService, campo `tipo` na fila de pendentes (ideia vira tarefa 💡 Ferramenta no site 1.19.0), testes `Ideas.join` e tipo; ícones dos atalhos (segurar o ícone) redondos coloridos `ic_sc_*` (+ verde, 🎤 verde, 🎤 amarelo da Ideia, RI azul). Não testado em aparelho (sem SDK local).
 - 2026-10-24: widget e atalho "Ideia" (IdeaActivity/IdeaStore/IdeaWorker/IdeaWidget, IdeasTest); MainActivity copia `bcbr_gh_token` do site para o lado nativo; `inicio.ps1` da memória mostra as ideias novas. Não testado em aparelho.
 - 2026-10-24: versão 1.2 (CI usa 1.2.N): atualizador pelo Releases (diálogo ao abrir + notificação a cada 12 h), FileProvider, REQUEST_INSTALL_PACKAGES, UpdateVersionTest. A 1.2 precisa ser instalada à mão uma vez; dali em diante o app avisa e instala com 1 toque.
