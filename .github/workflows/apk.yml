@@ -63,7 +63,7 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
         run: >-
           ./gradlew --no-daemon testDebugUnitTest "$BUILD_TASK"
-          -PversionCode="$VERSION_CODE" -PversionName="1.6.$VERSION_CODE"
+          -PversionCode="$VERSION_CODE" -PversionName="1.7.$VERSION_CODE"
       - name: Nomear APK
         env:
           VARIANT: ${{ steps.signing.outputs.variant }}

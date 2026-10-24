@@ -12,6 +12,7 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -69,7 +70,7 @@ class QuickAddActivity : ComponentActivity() {
             }
         }
         findViewById<Button>(R.id.quick_save).setOnClickListener { saveAndClose(input.text.toString(), false) }
-        findViewById<Button>(R.id.quick_mic).setOnClickListener {
+        findViewById<ImageButton>(R.id.quick_mic).setOnClickListener {
             try {
                 speech.launch(QuickAdd.speechIntent())
             } catch (_: ActivityNotFoundException) {

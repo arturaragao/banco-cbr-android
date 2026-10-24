@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pausar: botão redondo secundário menor, neutro, com ⏸ vetorial branco. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#30FFFFFF">
     <item>
         <shape android:shape="oval">
             <solid android:color="#334155" />
-            <stroke android:width="2dp" android:color="#475569" />
+            <stroke android:width="1dp" android:color="#64748B" />
         </shape>
     </item>
-    <item android:top="15dp" android:bottom="15dp" android:left="15dp" android:right="15dp"
-        android:drawable="@drawable/ic_pause" />
-</layer-list>
+</ripple>

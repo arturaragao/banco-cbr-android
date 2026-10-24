@@ -2,19 +2,19 @@ package io.github.arturaragao.bancocbr
 
 import android.Manifest
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
-import androidx.core.content.FileProvider
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -25,6 +25,7 @@ import androidx.work.WorkerParameters
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -35,18 +36,33 @@ object UpdateVersion {
     fun isNewer(tag: String, current: Int): Boolean = (codeFromTag(tag) ?: 0) > current
 }
 
+/** Restringe o APK aos assets HTTPS deste repositório; redirects HTTPS ficam com o GitHub. */
+internal object UpdateSource {
+    fun isTrustedApkUrl(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        val prefix = "/arturaragao/banco-cbr-android/releases/download/"
+        val path = uri.rawPath.orEmpty()
+        uri.scheme == "https" && uri.host == "github.com" && uri.port == -1 &&
+            uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
+            path.startsWith(prefix) && path.removePrefix(prefix).split('/').let { parts ->
+                parts.size == 2 && parts.all { it.isNotBlank() && it != "." && it != ".." && '%' !in it } &&
+                    parts.last().endsWith(".apk")
+            }
+    }.getOrDefault(false)
+}
+
 /**
- * Atualização pelo GitHub Releases, sem Play Store e sem custo (pedido do Artur, 24/10/2026).
- * Toda vez que o app abre (no máximo 1x por minuto) e de 15 em 15 min em segundo plano (mínimo do Android) consulta a última versão; se houver uma nova,
- * pergunta "Atualizar?" (ou avisa por notificação), baixa o APK e abre a tela de instalação do Android (1 toque).
- * O Android não deixa app fora da Play Store se instalar sem esse toque.
+ * Consulta o GitHub ao abrir e periodicamente, em qualquer rede conectada.
+ * Com permissão, baixa e instala por sessão; o Android decide se exige confirmação.
  */
 object Updater {
     private const val API = "https://api.github.com/repos/arturaragao/banco-cbr-android/releases/latest"
     private const val PREFS = "update"
     private const val NOTIF_ID = 900
     const val EXTRA = "atualizar"
+    internal const val STATUS_ACTION = "io.github.arturaragao.bancocbr.UPDATE_STATUS"
     private val executor = Executors.newSingleThreadExecutor()
+    private val updateLock = Any()
 
     data class Release(val tag: String, val apkUrl: String)
 
@@ -79,27 +95,51 @@ object Updater {
 
     /** Chamado no onResume. force = veio da notificação de atualização. */
     fun checkOnOpen(activity: Activity, force: Boolean) {
+        onPackageReplaced(activity)
         val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean("installPending", false) && apkFile(activity).isFile && canInstall(activity)) {
-            prefs.edit().putBoolean("installPending", false).apply()
-            install(activity)
-            return
+        // Retoma a confirmação mesmo se o Android bloqueou a abertura/notificação em segundo plano.
+        prefs.getString("confirmation", null)?.let { saved ->
+            val id = prefs.getInt("sessionId", -1)
+            if (id != -1 && activity.packageManager.packageInstaller.getSessionInfo(id) != null) {
+                runCatching {
+                    activity.startActivity(Intent.parseUri(saved, Intent.URI_INTENT_SCHEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.onFailure { reportError(activity, it.message ?: "Não consegui abrir a confirmação") }
+                return
+            }
+            prefs.edit().remove("confirmation").apply()
         }
+        val resumeInstall = prefs.getBoolean("installPending", false) && canInstall(activity)
         val now = System.currentTimeMillis()
-        if (!force && now - prefs.getLong("lastCheck", 0) < TimeUnit.MINUTES.toMillis(1)) return
+        if (!force && !resumeInstall && now - prefs.getLong("lastCheck", 0) < TimeUnit.MINUTES.toMillis(1)) return
         prefs.edit().putLong("lastCheck", now).apply()
+        val context = activity.applicationContext
         executor.execute {
-            val release = runCatching { latest() }.onFailure { Log.w("BancoCBR", "Falha ao procurar atualização", it) }.getOrNull()
-                ?: return@execute
-            if (!UpdateVersion.isNewer(release.tag, BuildConfig.VERSION_CODE)) return@execute
-            activity.runOnUiThread {
-                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-                AlertDialog.Builder(activity)
-                    .setTitle("Atualização disponível")
-                    .setMessage("Banco CBR ${release.tag.removePrefix("v")} (você tem ${BuildConfig.VERSION_NAME}). Atualizar agora?")
-                    .setPositiveButton("Atualizar") { _, _ -> download(activity, release) }
-                    .setNegativeButton("Depois", null)
-                    .show()
+            runCatching {
+                synchronized(updateLock) {
+                    if (hasActiveSession(context)) return@synchronized
+                    val staged = prefs.getString("stagedTag", null)
+                    if (resumeInstall && staged != null && UpdateVersion.isNewer(staged, BuildConfig.VERSION_CODE) && apkFile(context).isFile) {
+                        install(context, staged)
+                        return@synchronized
+                    }
+                    val release = latest() ?: return@synchronized
+                    if (!UpdateVersion.isNewer(release.tag, BuildConfig.VERSION_CODE)) return@synchronized
+                    if (canInstall(context)) downloadAndInstall(context, release)
+                    else if (force) {
+                        download(context, release)
+                        prefs.edit().putBoolean("installPending", true).apply()
+                        activity.runOnUiThread {
+                            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                            Toast.makeText(activity, "Permita \"instalar apps desconhecidos\" para o Banco CBR e volte.", Toast.LENGTH_LONG).show()
+                            runCatching {
+                                activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + activity.packageName)))
+                            }.onFailure { reportError(context, it.message ?: "Não consegui abrir a permissão de instalação") }
+                        }
+                    } else notifyAvailable(context, release)
+                }
+            }.onFailure {
+                Log.w("BancoCBR", "Falha ao atualizar", it)
+                reportError(context, it.message ?: "Não consegui atualizar")
             }
         }
     }
@@ -108,75 +148,192 @@ object Updater {
 
     private fun canInstall(context: Context) = Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
 
-    private fun download(activity: Activity, release: Release) {
-        Toast.makeText(activity, "Baixando a atualização…", Toast.LENGTH_SHORT).show()
-        executor.execute {
-            val ok = runCatching {
-                val file = apkFile(activity)
-                file.parentFile?.mkdirs()
-                val tmp = File(file.parentFile, "baixando.apk")
-                val c = URL(release.apkUrl).openConnection() as HttpURLConnection
-                c.connectTimeout = 15_000
-                c.readTimeout = 60_000
-                try {
-                    check(c.responseCode == 200) { "HTTP ${c.responseCode}" }
-                    c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                } finally {
-                    c.disconnect()
-                }
-                check(tmp.length() > 100_000) { "APK pequeno demais" }
-                file.delete()
-                check(tmp.renameTo(file)) { "não renomeou" }
-            }.onFailure { Log.w("BancoCBR", "Falha ao baixar atualização", it) }.isSuccess
-            activity.runOnUiThread {
-                if (!ok) {
-                    Toast.makeText(activity, "Não consegui baixar a atualização. Tento de novo mais tarde.", Toast.LENGTH_LONG).show()
-                    return@runOnUiThread
-                }
-                if (!canInstall(activity)) {
-                    // 1ª vez: o Android pede para permitir instalar apps vindos do Banco CBR. Depois volta e instala sozinho.
-                    activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("installPending", true).apply()
-                    Toast.makeText(activity, "Permita \"instalar apps desconhecidos\" para o Banco CBR e volte.", Toast.LENGTH_LONG).show()
-                    runCatching {
-                        activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + activity.packageName)))
-                    }
-                } else install(activity)
-            }
+    private fun download(context: Context, release: Release) {
+        check(UpdateSource.isTrustedApkUrl(release.apkUrl)) { "URL do APK não permitida" }
+        val file = apkFile(context)
+        file.parentFile?.mkdirs()
+        val tmp = File(file.parentFile, "baixando.apk")
+        val c = URL(release.apkUrl).openConnection() as HttpURLConnection
+        c.connectTimeout = 15_000
+        c.readTimeout = 60_000
+        try {
+            check(c.responseCode == 200) { "HTTP ${c.responseCode}" }
+            check(c.url.protocol == "https") { "Download sem HTTPS" }
+            c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            check(tmp.length() > 100_000) { "APK pequeno demais" }
+            file.delete()
+            check(tmp.renameTo(file)) { "Não consegui salvar o APK" }
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("stagedTag", release.tag).apply()
+        } finally {
+            c.disconnect()
+            tmp.delete()
         }
     }
 
-    private fun install(activity: Activity) {
-        val uri = FileProvider.getUriForFile(activity, activity.packageName + ".updates", apkFile(activity))
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, "application/vnd.android.package-archive")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { activity.startActivity(intent) }
-            .onFailure { Toast.makeText(activity, "Não consegui abrir o instalador.", Toast.LENGTH_LONG).show() }
+    private fun downloadAndInstall(context: Context, release: Release) {
+        download(context, release)
+        if (canInstall(context)) install(context, release.tag)
+        else notifyAvailable(context, release) // A permissão pode ter sido revogada durante o download.
     }
 
-    /** Segundo plano: só avisa (1 notificação por versão). */
-    fun notifyIfNewer(context: Context) {
-        val release = latest() ?: return
-        if (!UpdateVersion.isNewer(release.tag, BuildConfig.VERSION_CODE)) return
+    @Suppress("DEPRECATION")
+    private fun install(context: Context, tag: String) {
+        val file = apkFile(context)
+        val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0) ?: error("APK inválido")
+        check(archive.packageName == context.packageName) { "APK não pertence ao Banco CBR" }
+        val code = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
+        check(code == UpdateVersion.codeFromTag(tag)?.toLong() && code > BuildConfig.VERSION_CODE) { "Versão do APK inválida" }
+        // O PackageInstaller valida a assinatura contra a versão instalada, inclusive rotação de chave.
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            setSize(file.length())
+            if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val id = installer.createSession(params)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        try {
+            // Persistir antes de escrever/commitar permite recuperar sessões interrompidas.
+            // Uma atualização de si mesmo encerra este processo.
+            check(prefs.edit().putInt("sessionId", id).putString("sessionTag", tag)
+                .putBoolean("installPending", false).commit()) { "Não consegui salvar a sessão" }
+            installer.openSession(id).use { session ->
+                session.openWrite("base.apk", 0, file.length()).use { output ->
+                    file.inputStream().use { it.copyTo(output) }
+                    session.fsync(output)
+                }
+                val status = Intent(context, UpdateStatusReceiver::class.java).setAction(STATUS_ACTION)
+                // O sistema precisa preencher EXTRA_STATUS/EXTRA_INTENT (imutável não funciona no target 35).
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                val callback = PendingIntent.getBroadcast(context, id, status, flags)
+                session.commit(callback.intentSender)
+            }
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(id) }
+            prefs.edit().remove("sessionId").remove("sessionTag").remove("confirmation").apply()
+            throw e
+        }
+    }
+
+    private fun hasActiveSession(context: Context): Boolean {
+        onPackageReplaced(context)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = prefs.getInt("sessionId", -1)
+        if (id == -1) return false
+        val session = context.packageManager.packageInstaller.getSessionInfo(id)
+        if (session != null && session.isSealed) return true
+        // Recupera uma sessão interrompida antes do commit, sem bloquear futuras tentativas.
+        if (session != null) runCatching { context.packageManager.packageInstaller.abandonSession(id) }
+        prefs.edit().remove("sessionId").remove("sessionTag").remove("confirmation").apply()
+        return false
+    }
+
+    /** Segundo plano: baixa/instala com permissão; senão avisa uma vez por versão. */
+    fun notifyIfNewer(context: Context) = synchronized(updateLock) {
+        try {
+            if (hasActiveSession(context)) return@synchronized
+            val release = latest() ?: return@synchronized
+            if (!UpdateVersion.isNewer(release.tag, BuildConfig.VERSION_CODE)) return@synchronized
+            if (canInstall(context)) downloadAndInstall(context, release)
+            else notifyAvailable(context, release)
+        } catch (e: Exception) {
+            reportError(context, e.message ?: "Não consegui atualizar")
+            throw e
+        }
+    }
+
+    private fun notifyAvailable(context: Context, release: Release) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString("notified", null) == release.tag) return
-        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        Notifications.createChannel(context)
-        val manager = context.getSystemService(NotificationManager::class.java)
-        if (!manager.areNotificationsEnabled()) return
-        prefs.edit().putString("notified", release.tag).apply()
         val open = Intent(context, MainActivity::class.java).putExtra(EXTRA, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pending = PendingIntent.getActivity(context, NOTIF_ID, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val text = "Versão ${release.tag.removePrefix("v")} disponível. Toque para atualizar."
+        if (notify(context, "Atualização do Banco CBR", text, pending)) prefs.edit().putString("notified", release.tag).apply()
+    }
+
+    private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, NOTIF_ID + 1, Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun notify(context: Context, title: String, text: String, pending: PendingIntent): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (!manager.areNotificationsEnabled()) return false
+        Notifications.createChannel(context)
         val notification = Notification.Builder(context, "avisos")
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xff60a5fa.toInt())
-            .setContentTitle("Atualização do Banco CBR")
+            .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
         manager.notify(NOTIF_ID, notification)
+        return true
+    }
+
+    private fun reportError(context: Context, reason: String) {
+        Log.w("BancoCBR", "Atualização: $reason")
+        notify(context, "Falha ao atualizar Banco CBR", reason.take(180), openApp(context))
+    }
+
+    internal fun onPackageReplaced(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val tag = prefs.getString("sessionTag", null) ?: return
+        val code = UpdateVersion.codeFromTag(tag) ?: return
+        if (BuildConfig.VERSION_CODE >= code) reportSuccess(context, tag)
+    }
+
+    private fun reportSuccess(context: Context, tag: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove("sessionId").remove("sessionTag").remove("stagedTag").remove("notified").remove("confirmation")
+            .putBoolean("installPending", false).commit()
+        apkFile(context).delete()
+        notify(context, "Banco CBR atualizado para ${tag.removePrefix("v")}", "Toque para abrir o app.", openApp(context))
+    }
+
+    @Suppress("DEPRECATION")
+    internal fun onInstallStatus(context: Context, intent: Intent) {
+        if (intent.action != STATUS_ACTION) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = prefs.getInt("sessionId", -1)
+        if (id == -1 || intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1) != id) return
+        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                val confirmation = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    else intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                if (confirmation == null) {
+                    runCatching { context.packageManager.packageInstaller.abandonSession(id) }
+                    prefs.edit().remove("sessionId").remove("sessionTag").remove("notified").remove("confirmation").apply()
+                    reportError(context, "O instalador não enviou a confirmação")
+                    return
+                }
+                confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                prefs.edit().putString("confirmation", confirmation.toUri(Intent.URI_INTENT_SCHEME)).apply()
+                // Se o Android bloquear a abertura em segundo plano, o toque abre diretamente o instalador.
+                val pending = PendingIntent.getActivity(context, id, confirmation, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                notify(context, "Atualização do Banco CBR", "Toque para confirmar a instalação.", pending)
+                runCatching { context.startActivity(confirmation) }
+                    .onFailure {
+                        Log.w("BancoCBR", "Confirme a instalação pela notificação", it)
+                        notify(context, "Confirme a atualização do Banco CBR", (it.message ?: "Toque para abrir o instalador.").take(180), pending)
+                    }
+            }
+            PackageInstaller.STATUS_SUCCESS -> reportSuccess(context, prefs.getString("sessionTag", null) ?: BuildConfig.VERSION_NAME)
+            else -> {
+                prefs.edit().remove("sessionId").remove("sessionTag").remove("notified").remove("confirmation").apply()
+                reportError(context, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "Instalação recusada pelo Android")
+            }
+        }
+    }
+}
+
+class UpdateStatusReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) Updater.onPackageReplaced(context)
+        else Updater.onInstallStatus(context, intent)
     }
 }
 

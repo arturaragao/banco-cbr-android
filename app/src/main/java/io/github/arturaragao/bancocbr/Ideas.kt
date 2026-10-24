@@ -18,9 +18,11 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.RemoteViews
 import android.widget.ScrollView
@@ -351,15 +353,16 @@ class IdeaWidget : AppWidgetProvider() {
 }
 
 /**
- * Tela do widget Ideia (APK 1.3): grava até o Artur tocar em ⏸ (pausas na fala não encerram),
+ * Tela do widget Ideia (APK 1.3): grava até o Artur tocar em pausar (pausas na fala não encerram),
  * mostrando o texto enquanto fala; dá para editar, continuar falando e salvar.
  * Salvar = fila do GitHub (ideias/caixa.md) + tarefa pendente tipo "ideia" (o site cria "💡 ..." em Ferramenta).
  */
 class IdeaActivity : ComponentActivity() {
     private lateinit var input: EditText
     private lateinit var status: TextView
-    private lateinit var mic: Button
-    private lateinit var pause: Button
+    private lateinit var mic: ImageButton
+    private lateinit var pause: ImageButton
+    private lateinit var micRing: View
     private var recognizer: SpeechRecognizer? = null
     private var listening = false // laço de gravação ligado
     private var finishing = false // pediu para parar; esperando o último trecho (onResults/onError)
@@ -407,6 +410,7 @@ class IdeaActivity : ComponentActivity() {
         status = findViewById(R.id.idea_status)
         mic = findViewById(R.id.idea_mic)
         pause = findViewById(R.id.idea_pause)
+        micRing = findViewById(R.id.idea_mic_ring)
         setupAttachments()
         mic.setOnClickListener { if (!busy) { if (listening) stop() else if (!finishing) start() } }
         pause.setOnClickListener { if (!busy) stop() }
@@ -448,7 +452,7 @@ class IdeaActivity : ComponentActivity() {
         column.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             if (fill) 0 else ViewGroup.LayoutParams.WRAP_CONTENT, if (fill) 1f else 0f))
         attach = Button(this).apply {
-            text = "📎 Anexar"
+            text = "Anexar"
             setOnClickListener {
                 if (!busy) documents.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
@@ -553,7 +557,8 @@ class IdeaActivity : ComponentActivity() {
         val value = busy
         attach.isEnabled = !value
         mic.isEnabled = !value && !finishing
-        pause.isEnabled = !value && !finishing
+        pause.isEnabled = !value && !finishing && listening
+        pause.alpha = if (pause.isEnabled) 1f else 0.4f
         input.isEnabled = !value && !finishing
         findViewById<Button>(R.id.idea_save).isEnabled = !value
         findViewById<Button>(R.id.idea_cancel).isEnabled = !value
@@ -587,15 +592,20 @@ class IdeaActivity : ComponentActivity() {
         partial = ""
         failures = 0
         listening = true
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         status.setText(R.string.idea_listening)
         mic.setBackgroundResource(R.drawable.idea_mic_on)
-        pause.visibility = View.VISIBLE
+        pause.isEnabled = !busy
+        pause.alpha = if (pause.isEnabled) 1f else 0.4f
+        micRing.visibility = View.VISIBLE
+        pulse?.cancel()
         pulse = ObjectAnimator.ofPropertyValuesHolder(
-            mic,
-            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.1f),
-            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.1f),
+            micRing,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 0.85f, 1f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.85f, 1f),
+            PropertyValuesHolder.ofFloat(View.ALPHA, 0.65f, 0.2f),
         ).apply {
-            duration = 650
+            duration = 1000
             repeatCount = ObjectAnimator.INFINITE
             repeatMode = ObjectAnimator.REVERSE
             start()
@@ -698,19 +708,24 @@ class IdeaActivity : ComponentActivity() {
         finishing = false
         input.isEnabled = !busy
         mic.isEnabled = !busy
-        pause.visibility = View.GONE
+        pause.isEnabled = false
+        pause.alpha = 0.4f
         if (saveAfterFinish) saveNow()
     }
 
     private fun showPaused(message: Int, keyboard: Boolean = false) {
         listening = false
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handler.removeCallbacksAndMessages(null)
         pulse?.cancel()
         pulse = null
-        mic.scaleX = 1f
-        mic.scaleY = 1f
+        micRing.visibility = View.INVISIBLE
+        micRing.scaleX = 1f
+        micRing.scaleY = 1f
+        micRing.alpha = 1f
         mic.setBackgroundResource(R.drawable.idea_mic_off)
-        pause.visibility = View.GONE
+        pause.isEnabled = false
+        pause.alpha = 0.4f
         status.setText(message)
         if (keyboard) {
             input.requestFocus()
@@ -721,6 +736,7 @@ class IdeaActivity : ComponentActivity() {
     /** Gravando: para, espera o último trecho e só então salva. */
     private fun save() {
         if (busy) return
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         when {
             listening -> { saveAfterFinish = true; stop() }
             finishing -> saveAfterFinish = true
@@ -777,10 +793,17 @@ class IdeaActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (listening && !isFinishing) stop()
     }
 
+    override fun finish() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        super.finish()
+    }
+
     override fun onDestroy() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         draft.changed = null
         if (isFinishing) IdeaStore.deleteDraftAttachments(applicationContext)
         handler.removeCallbacksAndMessages(null)

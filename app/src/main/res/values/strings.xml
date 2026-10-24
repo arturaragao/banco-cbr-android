@@ -14,7 +14,7 @@
     <string name="task_saved">Tarefa salva</string>
     <string name="task_saved_text">Tarefa salva: %1$s</string>
     <string name="quick_hint">Nova tarefa</string>
-    <string name="quick_mic">🎤</string>
+    <string name="quick_mic">Microfone</string>
     <string name="quick_mic_desc">Falar tarefa</string>
     <string name="quick_save">Salvar</string>
     <string name="no_recognizer">Sem reconhecimento de voz neste aparelho</string>
@@ -23,11 +23,12 @@
     <string name="idea_title">Ideia de ferramenta</string>
     <string name="idea_saved">Ideia salva: está nas tarefas (Ferramenta) e vai para o GitHub assim que tiver internet</string>
     <string name="idea_hint">Fale ou digite a ideia</string>
-    <string name="idea_listening">Ouvindo… pode pausar e voltar a falar. Toque em ⏸ quando terminar.</string>
-    <string name="idea_paused">Pausado. Edite o texto, toque em 🎤 para continuar ou em Salvar.</string>
+    <string name="idea_listening">Ouvindo… pode pausar e voltar a falar. Toque em pausar quando terminar.</string>
+    <string name="idea_paused">Pausado. Edite o texto, toque no microfone para continuar ou em Salvar.</string>
     <string name="idea_no_mic">Sem permissão do microfone: digite a ideia (ou libere o microfone nas configurações do app).</string>
-    <string name="idea_mic_error">O microfone parou. Toque em 🎤 para continuar.</string>
+    <string name="idea_mic_error">O microfone parou. Para continuar, toque no microfone.</string>
     <string name="idea_cancel">Cancelar</string>
     <string name="idea_mic_desc">Gravar ou pausar</string>
+    <string name="idea_pause_desc">Pausar gravação</string>
     <string name="idea_no_token">Ideia salva nas tarefas; abra o app uma vez para enviar ao GitHub</string>
 </resources>
