@@ -47,5 +47,6 @@ Formato do resumo (de hoje até +35 dias):
 Implementação inicial completa, workflow e testes da lógica do resumo/avisos preparados. A máquina de criação tem somente Java 8, sem Gradle e sem Android SDK; build Android e testes ainda dependem da primeira execução no Actions. A integração depende de o site chamar a ponte; este projeto não altera o site. Validar aparência dos widgets e entrega de alarmes em aparelho real após instalar o APK.
 
 ## Histórico
+- 2026-10-24: versão 1.2 (CI usa 1.2.N): atualizador pelo Releases (diálogo ao abrir + notificação a cada 12 h), FileProvider, REQUEST_INSTALL_PACKAGES, UpdateVersionTest. A 1.2 precisa ser instalada à mão uma vez; dali em diante o app avisa e instala com 1 toque.
 - 2026-10-23: versão 1.1 (CI usa 1.1.N): QuickAddActivity/VoiceTaskActivity, fila de pendentes, ponte pendentes()/confirmar(), atalho Falar tarefa, PendingTasksTest. Não testado em aparelho (sem SDK local).
 - 2026-10-23: criação do projeto Android, WebView/ponte, splash/ícone/atalhos, três widgets, notificações locais, atualização periódica, workflow de APK e documentação.
