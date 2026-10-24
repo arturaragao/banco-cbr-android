@@ -19,6 +19,7 @@ class BancoApplication : Application() {
             "refresh-saved-summary", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RefreshWorker>(3, TimeUnit.HOURS).build()
         )
+        Updater.schedule(this)
         RefreshCoordinator.enqueue(this)
     }
 }

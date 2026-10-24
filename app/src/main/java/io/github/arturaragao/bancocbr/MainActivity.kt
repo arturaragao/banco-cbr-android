@@ -134,6 +134,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         webView.onResume()
         RefreshCoordinator.enqueue(applicationContext)
+        val force = intent.getBooleanExtra(Updater.EXTRA, false)
+        if (force) intent.removeExtra(Updater.EXTRA)
+        Updater.checkOnOpen(this, force)
     }
 
     override fun onPause() {

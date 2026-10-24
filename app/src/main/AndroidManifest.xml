@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
@@ -62,6 +63,13 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_calendar_info" />
         </receiver>
         <service android:name=".TasksRemoteViewsService" android:exported="false" android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".SystemRefreshReceiver" android:exported="false">
             <intent-filter>

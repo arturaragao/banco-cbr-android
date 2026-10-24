@@ -14,6 +14,8 @@ Invólucro Android Kotlin do site https://arturaragao.github.io/banco-cbr-app2/,
 - Receivers: reboot, mudança de data/hora/fuso e atualização do APK restauram agendamento e widgets. Android pode atrasar alarmes; forçar parada bloqueia eventos até abrir novamente.
 - Gradle Kotlin DSL: AGP 8.13.2, Kotlin 2.2.21, Gradle 8.13, JDK 17. Versões por propriedades. CI testa/linta, assina release se tiver os dois secrets e publica `latest` com tag versionada; senão debug. O JAR do wrapper é gerado pelo CI se ausente.
 
+- `Updater` (1.2): atualização pelo GitHub Releases sem Play Store. Ao abrir (máx. a cada 6 h) consulta `releases/latest` (sem token); tag v1.2.N, N = versionCode = run_number (`UpdateVersion`, testado). Mais novo → diálogo "Atualizar" → baixa o APK no cache → FileProvider `<pkg>.updates` → instalador do Android (1 toque; silencioso é impossível fora da Play Store). 1ª vez pede "instalar apps desconhecidos" e instala ao voltar (`installPending`). `UpdateWorker` (12 h, com rede) só notifica, 1x por versão; tocar abre o app com extra `atualizar`. Assinatura release sempre com a mesma chave (senão não instala por cima).
+
 ## Ponte BCBRNativo
 O site chama `window.BCBRNativo.dados(JSON.stringify(resumo))` sempre que os dados mudarem e no carregamento. O método é assíncrono: valida, salva e atualiza recursos nativos; JSON inválido preserva o último resumo válido. `window.BCBRNativo.versao()` devolve `BuildConfig.VERSION_NAME`. A ponte existe na WebView e deve ser usada somente pelo conteúdo confiável do site; evitar iframes/scripts não confiáveis.
 
@@ -30,7 +32,7 @@ Formato do resumo (de hoje até +35 dias):
   "mes": "2026-10"
 }
 ```
-`tipo`: estudo|ferramenta|tarefas. `noite`: BR|HSI|"". `tipoDia`: estudo|descanso|sobreaviso. `ev` e `agenda` entram nos avisos de evento. Urgências das 07h/13h vêm das tarefasHoje não feitas; tarefasSem aparecem no widget e não recebem uma data artificial. Resumo limitado a 1 MiB. Nenhuma consulta de rede em widgets ou workers.
+`tipo`: estudo|ferramenta|tarefas. `noite`: BR|HSI|"". `tipoDia`: estudo|descanso|sobreaviso. `ev` e `agenda` entram nos avisos de evento. Urgências das 07h/13h vêm das tarefasHoje não feitas; tarefasSem aparecem no widget e não recebem uma data artificial. Resumo limitado a 1 MiB. Nenhuma consulta de rede em widgets ou workers (exceção: `UpdateWorker`, só a API pública de releases).
 
 ## Pedidos do Artur
 - Widget pequeno para adicionar tarefa (rápido, nativo, texto ou voz).
@@ -38,6 +40,7 @@ Formato do resumo (de hoje até +35 dias):
 - Atalhos ao segurar o ícone: tarefa e RI do dia.
 - Widget grande com tarefas do dia e gerais, mais widget calendário.
 - Notificações de eventos, plantões e tarefas urgentes.
+- Atualização automática do app (24/10/2026): sem baixar à mão, sem tokens.
 - APK grátis pelo GitHub Releases; sem chaves no código; sem commit/push nesta criação.
 
 ## Estado atual
