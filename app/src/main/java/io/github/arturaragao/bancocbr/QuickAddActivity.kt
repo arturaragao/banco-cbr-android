@@ -26,8 +26,8 @@ object QuickAdd {
         data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
 
     /** Grava na fila e atualiza os widgets na hora, sem rede. */
-    fun save(context: Context, text: String, voice: Boolean) {
-        PendingStore.add(context, text, voice)
+    fun save(context: Context, text: String, voice: Boolean, kind: String = "") {
+        PendingStore.add(context, text, voice, kind)
         RefreshCoordinator.enqueue(context.applicationContext)
     }
 }

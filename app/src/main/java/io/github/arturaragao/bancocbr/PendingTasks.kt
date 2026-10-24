@@ -7,7 +7,8 @@ import org.json.JSONObject
 import java.time.Instant
 import java.util.UUID
 
-data class PendingTask(val id: String, val text: String, val createdAt: String, val voice: Boolean)
+/** kind: "" = tarefa comum (o site interpreta data/hora); "ideia" = widget Ideia (vira tarefa Ferramenta sem data). */
+data class PendingTask(val id: String, val text: String, val createdAt: String, val voice: Boolean, val kind: String = "")
 
 /** Lógica pura da fila de tarefas pendentes (JSON em String); testável na JVM. */
 object PendingTasks {
@@ -18,7 +19,7 @@ object PendingTasks {
         val array = JSONArray(json)
         (0 until array.length()).map { index ->
             val item = array.getJSONObject(index)
-            PendingTask(item.getString("id"), item.getString("texto"), item.optString("criadoEm"), item.optBoolean("voz"))
+            PendingTask(item.getString("id"), item.getString("texto"), item.optString("criadoEm"), item.optBoolean("voz"), item.optString("tipo"))
         }
     } catch (_: JSONException) {
         null
@@ -26,12 +27,14 @@ object PendingTasks {
 
     fun toJson(tasks: List<PendingTask>): String = JSONArray().apply {
         tasks.forEach { task ->
-            put(JSONObject().put("id", task.id).put("texto", task.text).put("criadoEm", task.createdAt).put("voz", task.voice))
+            val item = JSONObject().put("id", task.id).put("texto", task.text).put("criadoEm", task.createdAt).put("voz", task.voice)
+            if (task.kind.isNotEmpty()) item.put("tipo", task.kind)
+            put(item)
         }
     }.toString()
 
-    fun create(text: String, voice: Boolean): PendingTask =
-        PendingTask(UUID.randomUUID().toString(), text.trim(), Instant.now().toString(), voice)
+    fun create(text: String, voice: Boolean, kind: String = ""): PendingTask =
+        PendingTask(UUID.randomUUID().toString(), text.trim(), Instant.now().toString(), voice, kind)
 
     /** Acrescenta ao fim; null se a fila recebida for inválida. */
     fun append(queue: String, task: PendingTask): String? = parse(queue)?.let { toJson(it + task) }
@@ -58,11 +61,11 @@ object PendingStore {
 
     fun tasks(context: Context): List<PendingTask> = PendingTasks.parse(read(context)).orEmpty()
 
-    fun add(context: Context, text: String, voice: Boolean) {
+    fun add(context: Context, text: String, voice: Boolean, kind: String = "") {
         synchronized(lock) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val current = readLocked(context)
-            val task = PendingTasks.create(text, voice)
+            val task = PendingTasks.create(text, voice, kind)
             val editor = prefs.edit()
             val next = PendingTasks.append(current, task) ?: run {
                 editor.putString("corrompido", current) // Fila ilegível: guarda a cópia crua e recomeça.

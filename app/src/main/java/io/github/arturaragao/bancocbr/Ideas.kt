@@ -1,14 +1,25 @@
 package io.github.arturaragao.bancocbr
 
-import android.app.AlertDialog
+import android.Manifest
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
-import android.text.InputType
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.RemoteViews
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +50,17 @@ object Ideas {
     fun appendTo(existing: String?, lines: List<String>): String {
         val base = if (existing.isNullOrBlank()) HEADER else existing.trimEnd('\n', '\r') + "\n"
         return base + lines.joinToString("\n") + "\n"
+    }
+
+    /** Junta um trecho ditado ao texto que já existe (gravação em várias partes). */
+    fun join(base: String, spoken: String): String {
+        val b = base.trimEnd()
+        val a = spoken.trim()
+        return when {
+            a.isEmpty() -> b
+            b.isEmpty() -> a
+            else -> "$b $a"
+        }
     }
 
     /** localStorage.getItem via evaluateJavascript devolve um literal JSON ("\"abc\"" ou "null"). */
@@ -158,50 +180,218 @@ class IdeaWidget : AppWidgetProvider() {
     }
 }
 
-/** Transparente: voz → confirmar/editar → fila local → envio ao GitHub em segundo plano. */
+/**
+ * Tela do widget Ideia (APK 1.3): grava até o Artur tocar em ⏸ (pausas na fala não encerram),
+ * mostrando o texto enquanto fala; dá para editar, continuar falando e salvar.
+ * Salvar = fila do GitHub (ideias/caixa.md) + tarefa pendente tipo "ideia" (o site cria "💡 ..." em Ferramenta).
+ */
 class IdeaActivity : ComponentActivity() {
-    private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = if (result.resultCode == RESULT_OK) QuickAdd.spokenText(result.data) else null
-        if (spoken == null) finish() else confirm(spoken)
+    private lateinit var input: EditText
+    private lateinit var status: TextView
+    private lateinit var mic: Button
+    private var recognizer: SpeechRecognizer? = null
+    private var listening = false // laço de gravação ligado
+    private var finishing = false // pediu para parar; esperando o último trecho (onResults/onError)
+    private var saveAfterFinish = false
+    private var base = "" // texto já fechado
+    private var partial = "" // trecho da rodada atual, ainda não fechado
+    private var failures = 0
+    private var pulse: ObjectAnimator? = null
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) start() else showPaused(R.string.idea_no_mic, keyboard = true)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState != null) return
-        listen("")
+        setContentView(R.layout.idea)
+        setFinishOnTouchOutside(false)
+        input = findViewById(R.id.idea_input)
+        status = findViewById(R.id.idea_status)
+        mic = findViewById(R.id.idea_mic)
+        mic.setOnClickListener { if (listening) stop() else if (!finishing) start() }
+        findViewById<Button>(R.id.idea_save).setOnClickListener { save() }
+        findViewById<Button>(R.id.idea_cancel).setOnClickListener { finish() }
+        findViewById<View>(R.id.idea_root).setOnClickListener { if (input.text.isBlank()) finish() }
+        input.setOnFocusChangeListener { _, focused -> if (focused && listening) stop() }
+        if (savedInstanceState == null) start() else showPaused(R.string.idea_paused)
     }
 
-    private fun listen(typed: String) {
-        try {
-            speech.launch(QuickAdd.speechIntent())
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.no_recognizer, Toast.LENGTH_SHORT).show()
-            confirm(typed)
+    private fun start() {
+        if (finishing) return
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return showPaused(R.string.no_recognizer, keyboard = true)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permission.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        input.clearFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(input.windowToken, 0)
+        base = input.text.toString().trim()
+        partial = ""
+        failures = 0
+        listening = true
+        status.setText(R.string.idea_listening)
+        mic.text = "⏸"
+        mic.setBackgroundResource(R.drawable.idea_mic_on)
+        pulse = ObjectAnimator.ofPropertyValuesHolder(
+            mic,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.1f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.1f),
+        ).apply {
+            duration = 650
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.REVERSE
+            start()
+        }
+        listenOnce()
+    }
+
+    /** Uma rodada do reconhecedor; ao fim (resultado ou silêncio) começa outra enquanto listening. */
+    private fun listenOnce() {
+        if (!listening) return
+        val r = recognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also {
+            it.setRecognitionListener(listener)
+            recognizer = it
+        }
+        r.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Pedem mais tolerância ao silêncio (alguns aparelhos ignoram; o laço cobre o resto).
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
+        })
+    }
+
+    private fun restart(delay: Long, fresh: Boolean) {
+        if (fresh) {
+            recognizer?.destroy()
+            recognizer = null
+        }
+        handler.postDelayed({ listenOnce() }, delay)
+    }
+
+    private fun show(text: String) {
+        input.setText(text)
+        input.setSelection(text.length)
+    }
+
+    private val listener = object : RecognitionListener {
+        override fun onPartialResults(bundle: Bundle?) {
+            val heard = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull() ?: return
+            if (!listening && !finishing) return
+            partial = heard
+            show(Ideas.join(base, partial))
+        }
+
+        override fun onResults(results: Bundle?) {
+            if (!listening && !finishing) return
+            val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            base = Ideas.join(base, heard.ifBlank { partial })
+            partial = ""
+            show(base)
+            failures = 0
+            if (finishing) endRound() else if (listening) restart(80, fresh = false)
+        }
+
+        override fun onError(error: Int) {
+            if (!listening && !finishing) return
+            commitPartial()
+            if (finishing) return endRound()
+            when (error) {
+                // Silêncio: não é fim da ideia, só começa outra rodada.
+                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restart(80, fresh = false)
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> showPaused(R.string.idea_no_mic, keyboard = true)
+                else -> if (++failures >= 3) showPaused(R.string.idea_mic_error) else restart(400, fresh = true)
+            }
+        }
+
+        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onBeginningOfSpeech() = Unit
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() = Unit
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    }
+
+    /** Fecha o trecho em andamento (rodada que terminou sem resultado final). */
+    private fun commitPartial() {
+        if (partial.isBlank()) return
+        base = Ideas.join(base, partial)
+        partial = ""
+        show(base)
+    }
+
+    /** Para de ouvir. O texto só fica editável quando o último trecho chega (ou após 2 s), para não perder nem repetir palavras. */
+    private fun stop() {
+        listening = false
+        finishing = true
+        handler.removeCallbacksAndMessages(null)
+        input.isEnabled = false
+        mic.isEnabled = false
+        showPaused(R.string.idea_paused)
+        recognizer?.stopListening()
+        handler.postDelayed({ if (finishing) { recognizer?.cancel(); endRound() } }, 2000)
+    }
+
+    /** Fim da última rodada depois do pedido de parar. */
+    private fun endRound() {
+        handler.removeCallbacksAndMessages(null)
+        commitPartial()
+        finishing = false
+        input.isEnabled = true
+        mic.isEnabled = true
+        if (saveAfterFinish) saveNow()
+    }
+
+    private fun showPaused(message: Int, keyboard: Boolean = false) {
+        listening = false
+        handler.removeCallbacksAndMessages(null)
+        pulse?.cancel()
+        pulse = null
+        mic.scaleX = 1f
+        mic.scaleY = 1f
+        mic.text = "🎤"
+        mic.setBackgroundResource(R.drawable.idea_mic_off)
+        status.setText(message)
+        if (keyboard) {
+            input.requestFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
         }
     }
 
-    private fun confirm(text: String) {
-        val input = EditText(this).apply {
-            setText(text)
-            setSelection(text.length)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+    /** Gravando: para, espera o último trecho e só então salva. */
+    private fun save() {
+        when {
+            listening -> { saveAfterFinish = true; stop() }
+            finishing -> saveAfterFinish = true
+            else -> saveNow()
         }
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle(R.string.idea_title)
-            .setView(input)
-            .setPositiveButton(R.string.quick_save) { _, _ -> save(input.text.toString()) }
-            .setNeutralButton(R.string.idea_again) { _, _ -> listen(input.text.toString()) }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
-            .setOnCancelListener { finish() }
-            .show()
     }
 
-    private fun save(text: String) {
-        if (text.isBlank()) return finish()
+    private fun saveNow() {
+        saveAfterFinish = false
+        val text = input.text.toString().trim()
+        if (text.isEmpty()) return finish()
         IdeaStore.add(this, text)
         IdeaUpload.enqueue(applicationContext)
+        QuickAdd.save(this, text, voice = true, kind = "ideia")
         val msg = if (IdeaStore.token(this) == null) R.string.idea_no_token else R.string.idea_saved
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         finish()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (listening && !isFinishing) stop()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        pulse?.cancel()
+        recognizer?.destroy()
+        recognizer = null
+        super.onDestroy()
     }
 }

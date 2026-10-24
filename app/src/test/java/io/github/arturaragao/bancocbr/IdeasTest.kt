@@ -21,6 +21,12 @@ class IdeasTest {
         assertEquals("# X\n- [x] velha\n- [ ] b\n- [ ] c\n", Ideas.appendTo("# X\n- [x] velha\n\n", listOf("- [ ] b", "- [ ] c")))
     }
 
+    @Test fun joinGluesDictatedPieces() {
+        assertEquals("primeira parte segunda", Ideas.join("primeira parte  ", " segunda "))
+        assertEquals("só fala", Ideas.join("", "só fala"))
+        assertEquals("texto", Ideas.join("texto", "   "))
+    }
+
     @Test fun tokenFromJsLiteral() {
         assertEquals("ghp_abc", Ideas.tokenFromJs("\"ghp_abc\""))
         assertNull(Ideas.tokenFromJs("null"))

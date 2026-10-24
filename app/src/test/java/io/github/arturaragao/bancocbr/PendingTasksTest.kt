@@ -31,6 +31,13 @@ class PendingTasksTest {
         assertNull(PendingTasks.parse("lixo"))
     }
 
+    @Test fun ideaKindSurvivesTheQueueAndCommonTasksHaveNone() {
+        val queue = PendingTasks.append(PendingTasks.EMPTY, PendingTasks.create("app de laudo", true, "ideia"))!!
+        val both = PendingTasks.append(queue, task("b"))!!
+        assertTrue(both.contains("\"tipo\":\"ideia\""))
+        assertEquals(listOf("ideia", ""), PendingTasks.parse(both)!!.map { it.kind })
+    }
+
     @Test fun createTrimsTextAndGeneratesUniqueIds() {
         val one = PendingTasks.create("  lavar carro  ", true)
         val two = PendingTasks.create("lavar carro", true)

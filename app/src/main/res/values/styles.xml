@@ -18,6 +18,15 @@
         <item name="android:colorAccent">@color/study</item>
         <item name="android:windowBackground">@color/background</item>
     </style>
+    <style name="Theme.BancoCBR.Idea" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#1e293b</item>
+        <item name="android:colorAccent">@color/tool</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.InputMethod</item>
+    </style>
     <style name="Theme.BancoCBR.Transparent" parent="android:style/Theme.Translucent.NoTitleBar">
         <item name="android:windowAnimationStyle">@null</item>
     </style>
