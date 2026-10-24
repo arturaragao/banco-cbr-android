@@ -2,9 +2,11 @@
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut android:shortcutId="tarefa" android:enabled="true" android:icon="@drawable/ic_logo" android:shortcutShortLabel="@string/shortcut_task">
         <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"
-            android:targetClass="io.github.arturaragao.bancocbr.MainActivity" android:data="bancocbr://abrir?acao=tarefa">
-            <extra android:name="acao" android:value="tarefa" />
-        </intent>
+            android:targetClass="io.github.arturaragao.bancocbr.QuickAddActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="voz" android:enabled="true" android:icon="@drawable/ic_mic" android:shortcutShortLabel="@string/shortcut_voice">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"
+            android:targetClass="io.github.arturaragao.bancocbr.VoiceTaskActivity" />
     </shortcut>
     <shortcut android:shortcutId="ri" android:enabled="true" android:icon="@drawable/ic_logo" android:shortcutShortLabel="@string/shortcut_ri">
         <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"

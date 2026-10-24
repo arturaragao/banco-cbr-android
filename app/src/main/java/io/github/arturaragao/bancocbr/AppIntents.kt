@@ -15,6 +15,12 @@ object AppIntents {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
 
+    fun quickAdd(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 1, Intent(context, QuickAddActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
     fun pending(context: Context, action: String? = null): PendingIntent = PendingIntent.getActivity(
         context, 0, open(context, action), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )

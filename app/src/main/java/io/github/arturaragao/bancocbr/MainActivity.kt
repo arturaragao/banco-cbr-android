@@ -166,4 +166,13 @@ class NativeBridge(private val context: android.content.Context) {
 
     @JavascriptInterface
     fun versao(): String = BuildConfig.VERSION_NAME
+
+    @JavascriptInterface
+    fun pendentes(): String = PendingStore.read(context)
+
+    @JavascriptInterface
+    fun confirmar(idsJson: String) {
+        PendingStore.remove(context, idsJson)
+        RefreshCoordinator.enqueue(context)
+    }
 }

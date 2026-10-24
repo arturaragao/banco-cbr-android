@@ -14,4 +14,11 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_logo</item>
         <item name="postSplashScreenTheme">@style/Theme.BancoCBR</item>
     </style>
+    <style name="Theme.BancoCBR.Dialog" parent="android:style/Theme.Material.Dialog">
+        <item name="android:colorAccent">@color/study</item>
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+    <style name="Theme.BancoCBR.Transparent" parent="android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

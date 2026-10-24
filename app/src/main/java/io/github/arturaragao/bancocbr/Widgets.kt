@@ -59,7 +59,7 @@ object WidgetRenderer {
         ids(AddTaskWidget::class.java).forEach { id ->
             val views = RemoteViews(context.packageName, R.layout.widget_add)
             views.setViewVisibility(R.id.add_hint, if (summary == null) View.VISIBLE else View.GONE)
-            views.setOnClickPendingIntent(R.id.widget_root, AppIntents.pending(context, "tarefa"))
+            views.setOnClickPendingIntent(R.id.widget_root, AppIntents.quickAdd(context))
             manager.updateAppWidget(id, views)
         }
         val taskIds = ids(TasksWidget::class.java)
@@ -188,7 +188,11 @@ private class TaskFactory(private val context: Context) : RemoteViewsService.Rem
 
     private fun load() {
         val summary = SummaryStore.read(context)
-        rows = if (summary == null) listOf(context.getString(R.string.no_data)) else buildList {
+        val pending = PendingStore.tasks(context).map { TaskItem(it.id, it.text, "tarefas", false, false) }
+        rows = if (summary == null) {
+            if (pending.isEmpty()) listOf(context.getString(R.string.no_data))
+            else listOf(WidgetRenderer.sectionText("Gerais (sem data)")) + pending.map { WidgetRenderer.taskText(it) }
+        } else buildList {
             add(WidgetRenderer.sectionText("Hoje"))
             val today = LocalDate.now()
             val tasks = summary.tasksOn(today).filterNot { it.done }
@@ -196,7 +200,7 @@ private class TaskFactory(private val context: Context) : RemoteViewsService.Rem
             else if (tasks.isEmpty()) add(context.getString(R.string.no_tasks))
             tasks.forEach { add(WidgetRenderer.taskText(it)) }
             add(WidgetRenderer.sectionText("Gerais (sem data)"))
-            val general = summary.generalTasks.filterNot { it.done }
+            val general = summary.generalTasks.filterNot { it.done } + pending
             if (general.isEmpty()) add(context.getString(R.string.no_tasks))
             general.forEach { add(WidgetRenderer.taskText(it)) }
         }

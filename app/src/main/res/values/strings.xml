@@ -10,4 +10,12 @@
     <string name="no_data">abra o app para carregar</string>
     <string name="no_tasks">Nenhuma tarefa pendente</string>
     <string name="channel_name">Avisos</string>
+    <string name="shortcut_voice">Falar tarefa</string>
+    <string name="task_saved">Tarefa salva</string>
+    <string name="task_saved_text">Tarefa salva: %1$s</string>
+    <string name="quick_hint">Nova tarefa</string>
+    <string name="quick_mic">🎤</string>
+    <string name="quick_mic_desc">Falar tarefa</string>
+    <string name="quick_save">Salvar</string>
+    <string name="no_recognizer">Sem reconhecimento de voz neste aparelho</string>
 </resources>
