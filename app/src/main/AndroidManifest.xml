@@ -50,6 +50,16 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.BancoCBR.Transparent" />
 
+        <activity
+            android:name=".IdeaActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.BancoCBR.Transparent" />
+        <receiver android:name=".IdeaWidget" android:exported="false" android:label="@string/widget_idea_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_idea_info" />
+        </receiver>
         <receiver android:name=".AddTaskWidget" android:exported="false" android:label="@string/widget_add_name">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_add_info" />

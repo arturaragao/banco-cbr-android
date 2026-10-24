@@ -14,4 +14,8 @@
             <extra android:name="acao" android:value="ri" />
         </intent>
     </shortcut>
+    <shortcut android:shortcutId="ideia" android:enabled="true" android:icon="@drawable/ic_mic" android:shortcutShortLabel="@string/widget_idea_name">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.arturaragao.bancocbr"
+            android:targetClass="io.github.arturaragao.bancocbr.IdeaActivity" />
+    </shortcut>
 </shortcuts>

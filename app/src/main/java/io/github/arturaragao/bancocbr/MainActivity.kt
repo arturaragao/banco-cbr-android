@@ -53,6 +53,17 @@ class MainActivity : ComponentActivity() {
                     if (request.isForMainFrame) openExternal(request.url)
                     return true
                 }
+
+                // Copia a chave do GitHub do site (localStorage) para o widget Ideia enviar sem abrir o app.
+                override fun onPageFinished(view: WebView, url: String) {
+                    if (Uri.parse(url).host != "arturaragao.github.io") return
+                    view.evaluateJavascript("localStorage.getItem('bcbr_gh_token')") { result ->
+                        Ideas.tokenFromJs(result)?.let {
+                            IdeaStore.saveToken(applicationContext, it)
+                            if (IdeaStore.lines(applicationContext).isNotEmpty()) IdeaUpload.enqueue(applicationContext)
+                        }
+                    }
+                }
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onCreateWindow(view: WebView, dialog: Boolean, gesture: Boolean, resultMsg: Message): Boolean {
