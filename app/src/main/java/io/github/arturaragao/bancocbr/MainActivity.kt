@@ -137,6 +137,8 @@ class MainActivity : ComponentActivity() {
         val force = intent.getBooleanExtra(Updater.EXTRA, false)
         if (force) intent.removeExtra(Updater.EXTRA)
         Updater.checkOnOpen(this, force)
+        // traz na hora as tarefas criadas pela voz/widget enquanto o app estava aberto por baixo
+        webView.evaluateJavascript("window.smNativoImporta&&smNativoImporta()", null)
     }
 
     override fun onPause() {
@@ -169,6 +171,12 @@ class NativeBridge(private val context: android.content.Context) {
 
     @JavascriptInterface
     fun versao(): String = BuildConfig.VERSION_NAME
+
+    /** 🎤 do site: a voz do navegador não funciona na WebView; usa o reconhecedor do Android e grava na fila. */
+    @JavascriptInterface
+    fun falar() {
+        context.startActivity(Intent(context, VoiceTaskActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 
     @JavascriptInterface
     fun pendentes(): String = PendingStore.read(context)
