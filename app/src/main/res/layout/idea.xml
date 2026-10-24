@@ -3,27 +3,28 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/idea_root" android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="#99000000" android:fitsSystemWindows="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    <LinearLayout android:id="@+id/idea_card" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:background="@drawable/idea_card" android:clickable="true"
+        android:elevation="6dp" android:layout_margin="12dp"
         android:orientation="vertical" android:paddingStart="22dp" android:paddingEnd="22dp"
         android:paddingTop="22dp" android:paddingBottom="18dp">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="@string/idea_title" android:textColor="@color/foreground" android:textSize="20sp" android:textStyle="bold" />
+        <TextView android:id="@+id/idea_heading" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/idea_title" android:textColor="#303B46" android:textSize="20sp" android:textStyle="bold" />
         <TextView android:id="@+id/idea_status" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="4dp" android:textColor="@color/muted" android:textSize="13sp" />
+            android:layout_marginTop="8dp" android:textColor="#9A3D45" android:textSize="13sp" android:visibility="gone" />
         <EditText android:id="@+id/idea_input" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="16dp" android:background="@drawable/idea_field" android:gravity="top|start"
+            android:layout_marginTop="16dp" android:background="@drawable/idea_field" android:backgroundTint="@null" android:gravity="top|start"
             android:hint="@string/idea_hint" android:inputType="textMultiLine|textCapSentences"
             android:minLines="4" android:maxLines="10" android:padding="14dp" android:scrollbars="vertical"
-            android:textColor="@color/foreground" android:textColorHint="#64748b" android:textSize="16sp"
+            android:textColor="#303B46" android:textColorHint="#606D7C" android:textSize="16sp"
             android:lineSpacingExtra="3dp" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="16dp" android:gravity="center" android:orientation="horizontal">
             <Button android:id="@+id/idea_cancel" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
-                android:background="@android:color/transparent" android:stateListAnimator="@null"
+                android:background="@drawable/idea_field" android:backgroundTint="@null" android:stateListAnimator="@null"
                 android:minWidth="0dp" android:paddingStart="4dp" android:paddingEnd="4dp"
-                android:text="@string/idea_cancel" android:textAllCaps="false" android:textColor="@color/muted" android:textSize="14sp" />
-            <LinearLayout android:layout_width="136dp" android:layout_height="80dp"
+                android:text="@string/idea_cancel" android:textAllCaps="false" android:textColor="#303B46" android:textSize="14sp" />
+            <LinearLayout android:layout_width="88dp" android:layout_height="80dp"
                 android:gravity="center" android:orientation="horizontal">
                 <FrameLayout android:layout_width="72dp" android:layout_height="80dp">
                     <View android:id="@+id/idea_mic_ring" android:layout_width="72dp" android:layout_height="72dp"
@@ -32,18 +33,13 @@
                     <ImageButton android:id="@+id/idea_mic" android:layout_width="56dp" android:layout_height="56dp"
                         android:layout_gravity="center" android:padding="12dp" android:scaleType="fitCenter"
                         android:src="@drawable/ic_mic" android:background="@drawable/idea_mic_off"
-                        android:backgroundTint="@null" android:stateListAnimator="@null"
+                        android:backgroundTint="@null" android:stateListAnimator="@null" android:elevation="2dp"
                         android:contentDescription="@string/idea_mic_desc" />
                 </FrameLayout>
-                <ImageButton android:id="@+id/idea_pause" android:layout_width="56dp" android:layout_height="56dp"
-                    android:layout_marginStart="8dp" android:padding="12dp" android:scaleType="fitCenter"
-                    android:src="@drawable/ic_pause" android:background="@drawable/idea_pause"
-                    android:backgroundTint="@null" android:stateListAnimator="@null"
-                    android:contentDescription="@string/idea_pause_desc" android:enabled="false" android:alpha="0.4" />
             </LinearLayout>
             <Button android:id="@+id/idea_save" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
-                android:background="@drawable/idea_save" android:stateListAnimator="@null"
-                android:text="@string/quick_save" android:textAllCaps="false" android:textColor="@color/background"
+                android:background="@drawable/idea_save" android:backgroundTint="@null" android:stateListAnimator="@null"
+                android:text="@string/quick_save" android:textAllCaps="false" android:textColor="#29483D"
                 android:minWidth="0dp" android:paddingStart="4dp" android:paddingEnd="4dp"
                 android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>

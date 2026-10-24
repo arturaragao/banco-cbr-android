@@ -8,6 +8,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -353,7 +357,7 @@ class IdeaWidget : AppWidgetProvider() {
 }
 
 /**
- * Tela do widget Ideia (APK 1.3): grava até o Artur tocar em pausar (pausas na fala não encerram),
+ * Tela do widget Ideia (APK 1.3): grava até o Artur tocar em parar (pausas na fala não encerram),
  * mostrando o texto enquanto fala; dá para editar, continuar falando e salvar.
  * Salvar = fila do GitHub (ideias/caixa.md) + tarefa pendente tipo "ideia" (o site cria "💡 ..." em Ferramenta).
  */
@@ -361,7 +365,6 @@ class IdeaActivity : ComponentActivity() {
     private lateinit var input: EditText
     private lateinit var status: TextView
     private lateinit var mic: ImageButton
-    private lateinit var pause: ImageButton
     private lateinit var micRing: View
     private var recognizer: SpeechRecognizer? = null
     private var listening = false // laço de gravação ligado
@@ -409,11 +412,10 @@ class IdeaActivity : ComponentActivity() {
         input = findViewById(R.id.idea_input)
         status = findViewById(R.id.idea_status)
         mic = findViewById(R.id.idea_mic)
-        pause = findViewById(R.id.idea_pause)
         micRing = findViewById(R.id.idea_mic_ring)
         setupAttachments()
+        applyPalette()
         mic.setOnClickListener { if (!busy) { if (listening) stop() else if (!finishing) start() } }
-        pause.setOnClickListener { if (!busy) stop() }
         findViewById<Button>(R.id.idea_save).setOnClickListener { save() }
         findViewById<Button>(R.id.idea_cancel).setOnClickListener { finish() }
         findViewById<View>(R.id.idea_root).setOnClickListener {
@@ -430,10 +432,10 @@ class IdeaActivity : ComponentActivity() {
                 }
             }
             renderAttachments()
-            showPaused(R.string.idea_paused)
+            showPaused()
         } else if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
             show(Ideas.resumirSeLink(intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()))
-            showPaused(R.string.idea_paused)
+            showPaused()
             receiveAttachments(intent)
         } else start()
         draft.changed = { refreshDraft() }
@@ -453,6 +455,13 @@ class IdeaActivity : ComponentActivity() {
             if (fill) 0 else ViewGroup.LayoutParams.WRAP_CONTENT, if (fill) 1f else 0f))
         attach = Button(this).apply {
             text = "Anexar"
+            isAllCaps = false
+            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_idea_attach, 0, 0, 0)
+            compoundDrawablePadding = (8 * resources.displayMetrics.density).toInt()
+            setBackgroundResource(R.drawable.idea_field)
+            backgroundTintList = ColorStateList.valueOf(palette("#E3EAF4", "#3C4656"))
+            setTextColor(palette("#303B46", "#E2E5EB"))
+            compoundDrawableTintList = textColors
             setOnClickListener {
                 if (!busy) documents.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
@@ -533,13 +542,18 @@ class IdeaActivity : ComponentActivity() {
         attachments.forEach { attachment ->
             val row = LinearLayout(this)
             row.addView(TextView(this).apply {
+                setTextColor(palette("#303B46", "#E2E5EB"))
                 text = "${attachment.name} (${android.text.format.Formatter.formatFileSize(this@IdeaActivity, attachment.size)})"
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            row.addView(Button(this).apply {
-                text = "✕"
+            row.addView(ImageButton(this).apply {
+                setImageResource(R.drawable.ic_idea_close)
+                imageTintList = ColorStateList.valueOf(palette("#303B46", "#E2E5EB"))
+                setBackgroundResource(R.drawable.idea_field)
+                backgroundTintList = ColorStateList.valueOf(palette("#E3EAF4", "#3C4656"))
                 contentDescription = "Remover ${attachment.name}"
                 setOnClickListener { if (!busy) { attachments.remove(attachment); renderAttachments() } }
-            })
+            }, LinearLayout.LayoutParams((48 * resources.displayMetrics.density).toInt(),
+                (48 * resources.displayMetrics.density).toInt()))
             attachmentList.addView(row)
         }
         attachmentScroll.visibility = if (attachments.isEmpty()) View.GONE else View.VISIBLE
@@ -557,8 +571,6 @@ class IdeaActivity : ComponentActivity() {
         val value = busy
         attach.isEnabled = !value
         mic.isEnabled = !value && !finishing
-        pause.isEnabled = !value && !finishing && listening
-        pause.alpha = if (pause.isEnabled) 1f else 0.4f
         input.isEnabled = !value && !finishing
         findViewById<Button>(R.id.idea_save).isEnabled = !value
         findViewById<Button>(R.id.idea_cancel).isEnabled = !value
@@ -593,10 +605,8 @@ class IdeaActivity : ComponentActivity() {
         failures = 0
         listening = true
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        status.setText(R.string.idea_listening)
-        mic.setBackgroundResource(R.drawable.idea_mic_on)
-        pause.isEnabled = !busy
-        pause.alpha = if (pause.isEnabled) 1f else 0.4f
+        status.visibility = View.GONE
+        updateMic()
         micRing.visibility = View.VISIBLE
         pulse?.cancel()
         pulse = ObjectAnimator.ofPropertyValuesHolder(
@@ -696,7 +706,7 @@ class IdeaActivity : ComponentActivity() {
         handler.removeCallbacksAndMessages(null)
         input.isEnabled = false
         mic.isEnabled = false
-        showPaused(R.string.idea_paused)
+        showPaused()
         recognizer?.stopListening()
         handler.postDelayed({ if (finishing) { recognizer?.cancel(); endRound() } }, 2000)
     }
@@ -708,12 +718,10 @@ class IdeaActivity : ComponentActivity() {
         finishing = false
         input.isEnabled = !busy
         mic.isEnabled = !busy
-        pause.isEnabled = false
-        pause.alpha = 0.4f
         if (saveAfterFinish) saveNow()
     }
 
-    private fun showPaused(message: Int, keyboard: Boolean = false) {
+    private fun showPaused(message: Int? = null, keyboard: Boolean = false) {
         listening = false
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handler.removeCallbacksAndMessages(null)
@@ -723,14 +731,50 @@ class IdeaActivity : ComponentActivity() {
         micRing.scaleX = 1f
         micRing.scaleY = 1f
         micRing.alpha = 1f
-        mic.setBackgroundResource(R.drawable.idea_mic_off)
-        pause.isEnabled = false
-        pause.alpha = 0.4f
-        status.setText(message)
+        updateMic()
+        status.visibility = if (message == null) View.GONE else View.VISIBLE
+        if (message != null) status.setText(message)
         if (keyboard) {
             input.requestFocus()
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
         }
+    }
+
+    private fun palette(light: String, dark: String): Int = Color.parseColor(
+        if (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES) dark else light)
+
+    private fun applyPalette() {
+        val foreground = palette("#303B46", "#E2E5EB")
+        findViewById<TextView>(R.id.idea_heading).setTextColor(foreground)
+        (findViewById<View>(R.id.idea_card).background.mutate() as GradientDrawable)
+            .setColor(palette("#F3F0F7", "#2F3340"))
+        (input.background.mutate() as GradientDrawable).apply {
+            setColor(palette("#F5F8FC", "#383F4D"))
+            setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), palette("#DCE3ED", "#525B6B"))
+        }
+        input.setTextColor(foreground)
+        input.setHintTextColor(palette("#606D7C", "#B8C0CD"))
+        status.setTextColor(palette("#9A3D45", "#F0B5BA"))
+        findViewById<Button>(R.id.idea_save).apply {
+            backgroundTintList = ColorStateList.valueOf(palette("#BFE3D4", "#57776D"))
+            setTextColor(palette("#29483D", "#F0F5F2"))
+        }
+        findViewById<Button>(R.id.idea_cancel).apply {
+            backgroundTintList = ColorStateList.valueOf(palette("#E3EAF4", "#3C4656"))
+            setTextColor(foreground)
+        }
+        micRing.background.mutate().setTint(palette("#E57373", "#BE858A"))
+        updateMic()
+    }
+
+    private fun updateMic() {
+        mic.setBackgroundResource(if (listening) R.drawable.idea_mic_on else R.drawable.idea_mic_off)
+        mic.backgroundTintList = ColorStateList.valueOf(
+            if (listening) palette("#E57373", "#B87980") else palette("#F4A6A6", "#9F777F"))
+        mic.setImageResource(if (listening) R.drawable.ic_idea_stop else R.drawable.ic_mic)
+        mic.imageTintList = ColorStateList.valueOf(palette("#4D3036", "#241D24"))
+        mic.contentDescription = getString(if (listening) R.string.idea_stop_desc else R.string.idea_mic_desc)
     }
 
     /** Gravando: para, espera o último trecho e só então salva. */

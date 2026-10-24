@@ -20,15 +20,13 @@
     <string name="no_recognizer">Sem reconhecimento de voz neste aparelho</string>
     <string name="widget_idea_name">Ideia</string>
     <string name="idea_label">💡 ideia</string>
-    <string name="idea_title">Ideia de ferramenta</string>
+    <string name="idea_title">Ideia</string>
     <string name="idea_saved">Ideia salva: está nas tarefas (Ferramenta) e vai para o GitHub assim que tiver internet</string>
     <string name="idea_hint">Fale ou digite a ideia</string>
-    <string name="idea_listening">Ouvindo… pode pausar e voltar a falar. Toque em pausar quando terminar.</string>
-    <string name="idea_paused">Pausado. Edite o texto, toque no microfone para continuar ou em Salvar.</string>
-    <string name="idea_no_mic">Sem permissão do microfone: digite a ideia (ou libere o microfone nas configurações do app).</string>
-    <string name="idea_mic_error">O microfone parou. Para continuar, toque no microfone.</string>
+    <string name="idea_no_mic">Sem permissão para usar o microfone.</string>
+    <string name="idea_mic_error">Não foi possível continuar a gravação.</string>
     <string name="idea_cancel">Cancelar</string>
-    <string name="idea_mic_desc">Gravar ou pausar</string>
-    <string name="idea_pause_desc">Pausar gravação</string>
+    <string name="idea_mic_desc">Gravar ideia</string>
+    <string name="idea_stop_desc">Parar gravação</string>
     <string name="idea_no_token">Ideia salva nas tarefas; abra o app uma vez para enviar ao GitHub</string>
 </resources>
