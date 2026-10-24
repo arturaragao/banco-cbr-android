@@ -37,7 +37,7 @@ object UpdateVersion {
 
 /**
  * Atualização pelo GitHub Releases, sem Play Store e sem custo (pedido do Artur, 24/10/2026).
- * Ao abrir o app (no máximo a cada 6 h) e de 12 em 12 h em segundo plano consulta a última versão; se houver uma nova,
+ * Toda vez que o app abre (no máximo 1x por minuto) e de 15 em 15 min em segundo plano (mínimo do Android) consulta a última versão; se houver uma nova,
  * pergunta "Atualizar?" (ou avisa por notificação), baixa o APK e abre a tela de instalação do Android (1 toque).
  * O Android não deixa app fora da Play Store se instalar sem esse toque.
  */
@@ -51,10 +51,10 @@ object Updater {
     data class Release(val tag: String, val apkUrl: String)
 
     fun schedule(context: Context) {
-        val request = PeriodicWorkRequestBuilder<UpdateWorker>(12, TimeUnit.HOURS)
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(15, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork("check-update", ExistingPeriodicWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("check-update", ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
     fun latest(): Release? {
@@ -86,7 +86,7 @@ object Updater {
             return
         }
         val now = System.currentTimeMillis()
-        if (!force && now - prefs.getLong("lastCheck", 0) < TimeUnit.HOURS.toMillis(6)) return
+        if (!force && now - prefs.getLong("lastCheck", 0) < TimeUnit.MINUTES.toMillis(1)) return
         prefs.edit().putLong("lastCheck", now).apply()
         executor.execute {
             val release = runCatching { latest() }.onFailure { Log.w("BancoCBR", "Falha ao procurar atualização", it) }.getOrNull()
