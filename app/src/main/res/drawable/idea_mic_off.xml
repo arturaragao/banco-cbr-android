@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#334155" />
-    <stroke android:width="2dp" android:color="@color/tool" />
-</shape>
+<!-- Parado: botão redondo na cor do tema (âmbar), gradiente leve e microfone branco. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <gradient android:angle="90" android:startColor="#fcd34d" android:centerColor="#fbbf24" android:endColor="#d97706" />
+        </shape>
+    </item>
+    <item android:top="26dp" android:bottom="26dp" android:left="26dp" android:right="26dp"
+        android:drawable="@drawable/ic_mic" />
+</layer-list>

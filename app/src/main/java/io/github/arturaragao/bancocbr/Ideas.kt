@@ -95,6 +95,15 @@ object Ideas {
         }
     }
 
+    /** Compartilhou só um link? O campo começa com "Resumir: <link>" (o PC resume depois); texto com mais coisa fica igual. */
+    fun resumirSeLink(text: String): String {
+        val t = text.trim()
+        val link = !t.contains(Regex("\\s")) && runCatching {
+            java.net.URI(t).let { (it.scheme == "http" || it.scheme == "https") && !it.host.isNullOrEmpty() }
+        }.getOrDefault(false)
+        return if (link) "Resumir: $t" else text
+    }
+
     /** localStorage.getItem via evaluateJavascript devolve um literal JSON ("\"abc\"" ou "null"). */
     fun tokenFromJs(result: String?): String? = try {
         (JSONTokener(result ?: "null").nextValue() as? String)?.trim()?.takeIf { it.isNotEmpty() }
@@ -350,6 +359,7 @@ class IdeaActivity : ComponentActivity() {
     private lateinit var input: EditText
     private lateinit var status: TextView
     private lateinit var mic: Button
+    private lateinit var pause: Button
     private var recognizer: SpeechRecognizer? = null
     private var listening = false // laço de gravação ligado
     private var finishing = false // pediu para parar; esperando o último trecho (onResults/onError)
@@ -396,8 +406,10 @@ class IdeaActivity : ComponentActivity() {
         input = findViewById(R.id.idea_input)
         status = findViewById(R.id.idea_status)
         mic = findViewById(R.id.idea_mic)
+        pause = findViewById(R.id.idea_pause)
         setupAttachments()
         mic.setOnClickListener { if (!busy) { if (listening) stop() else if (!finishing) start() } }
+        pause.setOnClickListener { if (!busy) stop() }
         findViewById<Button>(R.id.idea_save).setOnClickListener { save() }
         findViewById<Button>(R.id.idea_cancel).setOnClickListener { finish() }
         findViewById<View>(R.id.idea_root).setOnClickListener {
@@ -416,7 +428,7 @@ class IdeaActivity : ComponentActivity() {
             renderAttachments()
             showPaused(R.string.idea_paused)
         } else if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
-            show(intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty())
+            show(Ideas.resumirSeLink(intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()))
             showPaused(R.string.idea_paused)
             receiveAttachments(intent)
         } else start()
@@ -541,6 +553,7 @@ class IdeaActivity : ComponentActivity() {
         val value = busy
         attach.isEnabled = !value
         mic.isEnabled = !value && !finishing
+        pause.isEnabled = !value && !finishing
         input.isEnabled = !value && !finishing
         findViewById<Button>(R.id.idea_save).isEnabled = !value
         findViewById<Button>(R.id.idea_cancel).isEnabled = !value
@@ -575,8 +588,8 @@ class IdeaActivity : ComponentActivity() {
         failures = 0
         listening = true
         status.setText(R.string.idea_listening)
-        mic.text = "⏸"
         mic.setBackgroundResource(R.drawable.idea_mic_on)
+        pause.visibility = View.VISIBLE
         pulse = ObjectAnimator.ofPropertyValuesHolder(
             mic,
             PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.1f),
@@ -685,6 +698,7 @@ class IdeaActivity : ComponentActivity() {
         finishing = false
         input.isEnabled = !busy
         mic.isEnabled = !busy
+        pause.visibility = View.GONE
         if (saveAfterFinish) saveNow()
     }
 
@@ -695,8 +709,8 @@ class IdeaActivity : ComponentActivity() {
         pulse = null
         mic.scaleX = 1f
         mic.scaleY = 1f
-        mic.text = "🎤"
         mic.setBackgroundResource(R.drawable.idea_mic_off)
+        pause.visibility = View.GONE
         status.setText(message)
         if (keyboard) {
             input.requestFocus()

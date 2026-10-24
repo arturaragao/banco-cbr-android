@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#ef4444" />
-</shape>
+<!-- Gravando: vermelho com gradiente, anel translúcido pulsando junto ao botão e microfone branco. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#7fef4444" />
+        </shape>
+    </item>
+    <item android:top="3dp" android:bottom="3dp" android:left="3dp" android:right="3dp">
+        <shape android:shape="oval">
+            <gradient android:angle="90" android:startColor="#f87171" android:centerColor="#ef4444" android:endColor="#dc2626" />
+        </shape>
+    </item>
+    <item android:top="26dp" android:bottom="26dp" android:left="26dp" android:right="26dp"
+        android:drawable="@drawable/ic_mic" />
+</layer-list>

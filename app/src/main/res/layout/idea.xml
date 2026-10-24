@@ -18,14 +18,17 @@
             android:textColor="@color/foreground" android:textColorHint="#64748b" android:textSize="16sp"
             android:lineSpacingExtra="3dp" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="18dp" android:gravity="center_vertical" android:orientation="horizontal">
+            android:layout_marginTop="16dp" android:gravity="center_vertical" android:orientation="horizontal">
             <Button android:id="@+id/idea_cancel" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
                 android:background="@android:color/transparent" android:stateListAnimator="@null"
                 android:text="@string/idea_cancel" android:textAllCaps="false" android:textColor="@color/muted" android:textSize="16sp" />
             <Button android:id="@+id/idea_mic" android:layout_width="76dp" android:layout_height="76dp"
                 android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
                 android:background="@drawable/idea_mic_off" android:stateListAnimator="@null"
-                android:contentDescription="@string/idea_mic_desc" android:text="🎤" android:textSize="28sp" />
+                android:contentDescription="@string/idea_mic_desc" />
+            <Button android:id="@+id/idea_pause" android:layout_width="48dp" android:layout_height="48dp"
+                android:layout_marginEnd="10dp" android:background="@drawable/idea_pause" android:stateListAnimator="@null"
+                android:contentDescription="@string/idea_mic_desc" android:visibility="gone" />
             <Button android:id="@+id/idea_save" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
                 android:background="@drawable/idea_save" android:stateListAnimator="@null"
                 android:text="@string/quick_save" android:textAllCaps="false" android:textColor="@color/background"
