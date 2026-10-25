@@ -18,9 +18,9 @@
     <string name="quick_mic_desc">Falar tarefa</string>
     <string name="quick_save">Salvar</string>
     <string name="no_recognizer">Sem reconhecimento de voz neste aparelho</string>
-    <string name="widget_idea_name">Ideia</string>
-    <string name="idea_label">💡 ideia</string>
-    <string name="idea_title">Ideia</string>
+    <string name="widget_idea_name">Ideias</string>
+    <string name="idea_label">💡 ideias</string>
+    <string name="idea_title">Ideias</string>
     <string name="idea_saved">Ideia salva: está nas tarefas (Ferramenta) e vai para o GitHub assim que tiver internet</string>
     <string name="idea_hint">Fale ou digite a ideia</string>
     <string name="idea_no_mic">Sem permissão para usar o microfone.</string>

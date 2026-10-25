@@ -20,6 +20,7 @@ import android.provider.OpenableColumns
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -27,13 +28,17 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.RemoteViews
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.work.Constraints
@@ -379,8 +384,24 @@ class IdeaActivity : ComponentActivity() {
     private val attachments get() = draft.attachments
     private lateinit var attachmentList: LinearLayout
     private lateinit var attachmentScroll: ScrollView
-    private lateinit var attach: Button
+    private lateinit var attach: LinearLayout
+    private lateinit var photo: LinearLayout
+    private var pendingCameraUri: Uri? = null
     private val busy get() = draft.busy
+
+    private val camera = registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (uri != null) {
+            if (ok) addAttachments(listOf(uri), copyToDraft = true)
+            // A mesma fila garante que a cópia do rascunho termine antes de apagar a foto temporária.
+            draft.io.execute { runCatching { contentResolver.delete(uri, null, null) } }
+        }
+    }
+
+    private val gallery = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
+        addAttachments(uris, copyToDraft = true)
+    }
 
     private val documents = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -407,6 +428,7 @@ class IdeaActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         draft = ViewModelProvider(this)[IdeaDraft::class.java]
+        pendingCameraUri = savedInstanceState?.getString("pending_camera_uri")?.let(Uri::parse)
         setContentView(R.layout.idea)
         setFinishOnTouchOutside(false)
         input = findViewById(R.id.idea_input)
@@ -453,15 +475,31 @@ class IdeaActivity : ComponentActivity() {
         val fill = params.height != ViewGroup.LayoutParams.WRAP_CONTENT
         column.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             if (fill) 0 else ViewGroup.LayoutParams.WRAP_CONTENT, if (fill) 1f else 0f))
-        attach = Button(this).apply {
-            text = "Anexar"
-            isAllCaps = false
-            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_idea_attach, 0, 0, 0)
-            compoundDrawablePadding = (8 * resources.displayMetrics.density).toInt()
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        fun attachmentButton(label: String, icon: Int) = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            contentDescription = label
             setBackgroundResource(R.drawable.idea_field)
             backgroundTintList = ColorStateList.valueOf(palette("#E3EAF4", "#3C4656"))
-            setTextColor(palette("#303B46", "#E2E5EB"))
-            compoundDrawableTintList = textColors
+            addView(ImageView(this@IdeaActivity).apply {
+                setImageResource(icon)
+                imageTintList = ColorStateList.valueOf(palette("#303B46", "#E2E5EB"))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(20), dp(20)))
+            addView(TextView(this@IdeaActivity).apply {
+                text = label
+                textSize = 14f
+                setTextColor(palette("#303B46", "#E2E5EB"))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(6) })
+        }
+        attach = attachmentButton("Anexar", R.drawable.ic_idea_attach).apply {
             setOnClickListener {
                 if (!busy) documents.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
@@ -471,10 +509,51 @@ class IdeaActivity : ComponentActivity() {
                 })
             }
         }
-        column.addView(attach)
+        photo = attachmentButton("Foto", R.drawable.ic_idea_camera).apply {
+            setOnClickListener {
+                if (!busy) PopupMenu(this@IdeaActivity, this).apply {
+                    menu.add(0, 0, 0, "Tirar foto")
+                    menu.add(0, 1, 1, "Escolher da galeria")
+                    setOnMenuItemClickListener { item ->
+                        if (!busy) {
+                            if (item.itemId == 0) takePhoto()
+                            else gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                        true
+                    }
+                    show()
+                }
+            }
+        }
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(View(this@IdeaActivity), LinearLayout.LayoutParams(0, 1, 0.5f))
+            addView(attach, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(photo, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(View(this@IdeaActivity), LinearLayout.LayoutParams(0, 1, 0.5f))
+        }
+        column.addView(actions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         attachmentList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         attachmentScroll = ScrollView(this).apply { addView(attachmentList); visibility = View.GONE }
         column.addView(attachmentScroll)
+    }
+
+    private fun takePhoto() {
+        var uri: Uri? = null
+        try {
+            val directory = File(cacheDir, "camera")
+            check(directory.isDirectory || directory.mkdirs())
+            val file = File.createTempFile("foto-", ".jpg", directory)
+            uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+            pendingCameraUri = uri
+            camera.launch(uri)
+        } catch (_: Exception) {
+            uri?.let { runCatching { contentResolver.delete(it, null, null) } }
+            pendingCameraUri = null
+            Toast.makeText(this, "Não foi possível abrir a câmera.", Toast.LENGTH_LONG).show()
+        }
     }
 
     @Suppress("DEPRECATION") // Sobrecargas tipadas de Parcelable só existem a partir da API 33.
@@ -570,6 +649,9 @@ class IdeaActivity : ComponentActivity() {
     private fun updateBusyControls() {
         val value = busy
         attach.isEnabled = !value
+        photo.isEnabled = !value
+        attach.alpha = if (value) 0.5f else 1f
+        photo.alpha = if (value) 0.5f else 1f
         mic.isEnabled = !value && !finishing
         input.isEnabled = !value && !finishing
         findViewById<Button>(R.id.idea_save).isEnabled = !value
@@ -585,6 +667,7 @@ class IdeaActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        pendingCameraUri?.let { outState.putString("pending_camera_uri", it.toString()) }
         outState.putStringArrayList("attachment_uris", ArrayList(attachments.map { it.uri.toString() }))
         outState.putStringArrayList("attachment_names", ArrayList(attachments.map { it.name }))
         outState.putLongArray("attachment_sizes", attachments.map { it.size }.toLongArray())
