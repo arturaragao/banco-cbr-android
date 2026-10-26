@@ -181,6 +181,11 @@ class NativeBridge(private val context: android.content.Context) {
     }
 
     @JavascriptInterface
+    fun tarefas(json: String) {
+        RefreshCoordinator.enqueue(context, before = { NativeTaskStore.save(context, json) })
+    }
+
+    @JavascriptInterface
     fun versao(): String = BuildConfig.VERSION_NAME
 
     /** 🎤 do site: a voz do navegador não funciona na WebView; usa o reconhecedor do Android e grava na fila. */

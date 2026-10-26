@@ -2,7 +2,9 @@
 <resources>
     <string name="app_name">Banco CBR</string>
     <string name="widget_add_name">Adicionar tarefa</string>
-    <string name="widget_tasks_name">Tarefas de hoje</string>
+    <string name="widget_tasks_name">Hoje</string>
+    <string name="task_reminder">Lembrete de tarefa</string>
+    <string name="complete_task">Concluir %1$s</string>
     <string name="widget_calendar_name">Calendário</string>
     <string name="add_task">+ tarefa</string>
     <string name="shortcut_task">Nova tarefa</string>

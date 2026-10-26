@@ -7,8 +7,8 @@ import org.json.JSONObject
 import java.time.Instant
 import java.util.UUID
 
-/** kind: "" = tarefa comum (o site interpreta data/hora); "ideia" = widget Ideia (vira tarefa Ferramenta sem data). */
-data class PendingTask(val id: String, val text: String, val createdAt: String, val voice: Boolean, val kind: String = "")
+/** kind: "" = tarefa comum; "ideia" = ideia; "concluir" = conclusão, com taskId e sem texto/voz. */
+data class PendingTask(val id: String, val text: String, val createdAt: String, val voice: Boolean, val kind: String = "", val taskId: String = "")
 
 /** Lógica pura da fila de tarefas pendentes (JSON em String); testável na JVM. */
 object PendingTasks {
@@ -19,7 +19,12 @@ object PendingTasks {
         val array = JSONArray(json)
         (0 until array.length()).map { index ->
             val item = array.getJSONObject(index)
-            PendingTask(item.getString("id"), item.getString("texto"), item.optString("criadoEm"), item.optBoolean("voz"), item.optString("tipo"))
+            val kind = item.optString("tipo")
+            if (kind == "concluir") {
+                PendingTask(item.getString("id"), "", "", false, kind, item.getString("tarefa"))
+            } else {
+                PendingTask(item.getString("id"), item.getString("texto"), item.optString("criadoEm"), item.optBoolean("voz"), kind)
+            }
         }
     } catch (_: JSONException) {
         null
@@ -27,6 +32,10 @@ object PendingTasks {
 
     fun toJson(tasks: List<PendingTask>): String = JSONArray().apply {
         tasks.forEach { task ->
+            if (task.kind == "concluir") {
+                put(JSONObject().put("id", task.id).put("tipo", "concluir").put("tarefa", task.taskId))
+                return@forEach
+            }
             val item = JSONObject().put("id", task.id).put("texto", task.text).put("criadoEm", task.createdAt).put("voz", task.voice)
             if (task.kind.isNotEmpty()) item.put("tipo", task.kind)
             put(item)
@@ -72,6 +81,19 @@ object PendingStore {
                 PendingTasks.toJson(listOf(task))
             }
             check(editor.putString("json", next).commit())
+        }
+    }
+
+    fun conclude(context: Context, taskId: String) {
+        synchronized(lock) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val current = readLocked(context)
+            val tasks = PendingTasks.parse(current)
+            if (tasks?.any { it.kind == "concluir" && it.taskId == taskId } == true) return
+            val task = PendingTask(UUID.randomUUID().toString(), "", "", false, "concluir", taskId)
+            val editor = prefs.edit()
+            if (tasks == null) editor.putString("corrompido", current)
+            check(editor.putString("json", PendingTasks.toJson(tasks.orEmpty() + task)).commit())
         }
     }
 

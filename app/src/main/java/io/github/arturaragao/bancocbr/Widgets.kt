@@ -41,7 +41,21 @@ open class RefreshingWidget : AppWidgetProvider() {
 }
 
 class AddTaskWidget : RefreshingWidget()
-class TasksWidget : RefreshingWidget()
+class TasksWidget : RefreshingWidget() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_COMPLETE) {
+            super.onReceive(context, intent)
+            return
+        }
+        val id = intent.getStringExtra("tarefa") ?: return
+        val pending = goAsync()
+        RefreshCoordinator.enqueue(context, before = { NativeTaskStore.conclude(context, id) }, finished = { pending.finish() })
+    }
+
+    companion object {
+        const val ACTION_COMPLETE = "io.github.arturaragao.bancocbr.CONCLUIR_TAREFA"
+    }
+}
 class CalendarWidget : RefreshingWidget()
 
 object WidgetRenderer {
@@ -68,23 +82,29 @@ object WidgetRenderer {
             val day = summary?.days?.get(today)
             val views = RemoteViews(context.packageName, R.layout.widget_tasks)
             views.setTextViewText(R.id.widget_title, "Hoje · ${today.format(DateTimeFormatter.ofPattern("dd/MM", locale))}")
-            val subtitle = if (summary == null) context.getString(R.string.no_data) else buildList {
+            val subtitle = if (summary == null && !NativeTaskStore.hasSnapshot(context)) context.getString(R.string.no_data) else buildList {
                 if (!day?.night.isNullOrEmpty()) add("noite ${day?.night}")
                 addAll(day?.allEvents.orEmpty())
-                if (summary.today != today) add("abra o app para atualizar tarefas de hoje")
+                if (!NativeTaskStore.hasSnapshot(context) && summary?.today != today) add("abra o app para atualizar tarefas de hoje")
             }.joinToString(" · ")
             views.setTextViewText(R.id.widget_subtitle, subtitle)
             views.setViewVisibility(R.id.widget_subtitle, if (subtitle.isEmpty()) View.GONE else View.VISIBLE)
-            views.setOnClickPendingIntent(R.id.widget_root, AppIntents.pending(context))
             views.setOnClickPendingIntent(R.id.widget_title, AppIntents.pending(context))
             views.setOnClickPendingIntent(R.id.widget_subtitle, AppIntents.pending(context))
+            views.setOnClickPendingIntent(R.id.widget_task_add, AppIntents.pending(context, "tarefa"))
+            views.setTextViewText(R.id.task_empty, context.getString(
+                if (summary == null && !NativeTaskStore.hasSnapshot(context)) R.string.no_data else R.string.no_tasks))
             val adapter = Intent(context, TasksRemoteViewsService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                 data = Uri.parse("bancocbr://widget/tarefas/$id")
             }
             views.setRemoteAdapter(R.id.task_list, adapter)
             views.setEmptyView(R.id.task_list, R.id.task_empty)
-            val template = PendingIntent.getActivity(context, id, AppIntents.open(context),
+            val complete = Intent(context, TasksWidget::class.java).apply {
+                action = TasksWidget.ACTION_COMPLETE
+                data = Uri.parse("bancocbr://widget/concluir/$id")
+            }
+            val template = PendingIntent.getBroadcast(context, id, complete,
                 PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0))
             views.setPendingIntentTemplate(R.id.task_list, template)
             manager.updateAppWidget(id, views)
@@ -181,35 +201,22 @@ class TasksRemoteViewsService : RemoteViewsService() {
 }
 
 private class TaskFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
-    private var rows: List<CharSequence> = emptyList()
+    private var rows: List<NativeTask> = emptyList()
     override fun onCreate() { load() }
     override fun onDataSetChanged() { load() }
     override fun onDestroy() { rows = emptyList() }
 
     private fun load() {
-        val summary = SummaryStore.read(context)
-        val pending = PendingStore.tasks(context).map { TaskItem(it.id, it.text, "tarefas", false, false) }
-        rows = if (summary == null) {
-            if (pending.isEmpty()) listOf(context.getString(R.string.no_data))
-            else listOf(WidgetRenderer.sectionText("Gerais (sem data)")) + pending.map { WidgetRenderer.taskText(it) }
-        } else buildList {
-            add(WidgetRenderer.sectionText("Hoje"))
-            val today = LocalDate.now()
-            val tasks = summary.tasksOn(today).filterNot { it.done }
-            if (summary.today != today) add("abra o app para atualizar tarefas de hoje")
-            else if (tasks.isEmpty()) add(context.getString(R.string.no_tasks))
-            tasks.forEach { add(WidgetRenderer.taskText(it)) }
-            add(WidgetRenderer.sectionText("Gerais (sem data)"))
-            val general = summary.generalTasks.filterNot { it.done } + pending
-            if (general.isEmpty()) add(context.getString(R.string.no_tasks))
-            general.forEach { add(WidgetRenderer.taskText(it)) }
-        }
+        rows = NativeTasks.today(NativeTaskStore.read(context))
     }
 
     override fun getCount(): Int = rows.size
     override fun getViewAt(position: Int): RemoteViews = RemoteViews(context.packageName, R.layout.widget_task_row).apply {
-        setTextViewText(R.id.row_text, rows.getOrNull(position) ?: "")
-        setOnClickFillInIntent(R.id.row_text, Intent())
+        val task = rows.getOrNull(position) ?: return@apply
+        val title = if (task.time.isEmpty()) task.title else "${task.time} · ${task.title}"
+        setTextViewText(R.id.row_text, WidgetRenderer.taskText(TaskItem(task.id, title, "tarefas", false, task.rank == 0)))
+        setContentDescription(R.id.row_check, context.getString(R.string.complete_task, task.title))
+        setOnClickFillInIntent(R.id.row_check, Intent().putExtra("tarefa", task.id))
     }
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1

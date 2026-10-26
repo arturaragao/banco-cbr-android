@@ -44,4 +44,17 @@ class PendingTasksTest {
         assertEquals("lavar carro", one.text)
         assertNotEquals(one.id, two.id)
     }
+
+    @Test fun completionKeepsItsExactShapeInAMixedQueueAndCanBeConfirmed() {
+        val completion = """{"id":"c","tipo":"concluir","tarefa":"site-123"}"""
+        val parsed = PendingTasks.parse("[$completion]")!!.single()
+        assertEquals("site-123", parsed.taskId)
+        val encoded = org.json.JSONArray(PendingTasks.toJson(listOf(parsed))).getJSONObject(0)
+        assertEquals(setOf("id", "tipo", "tarefa"), encoded.keys().asSequence().toSet())
+        val queue = PendingTasks.toJson(listOf(task("a"), PendingTasks.create("ideia", true, "ideia"), parsed))
+        val acknowledged = PendingTasks.parse(PendingTasks.remove(queue, """["a"]"""))!!
+        assertEquals(listOf("ideia", "concluir"), acknowledged.map { it.kind })
+        assertEquals("site-123", acknowledged.last().taskId)
+        assertEquals(listOf("ideia"), PendingTasks.parse(PendingTasks.remove(PendingTasks.toJson(acknowledged), """["c"]"""))!!.map { it.kind })
+    }
 }

@@ -15,6 +15,7 @@ class BancoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         Notifications.createChannel(this)
+        TaskReminders.createChannel(this)
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "refresh-saved-summary", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RefreshWorker>(3, TimeUnit.HOURS).build()
@@ -52,6 +53,7 @@ object RefreshCoordinator {
         val summary = SummaryStore.read(context)
         WidgetRenderer.updateAll(context, summary)
         Notifications.schedule(context, summary)
+        TaskReminders.schedule(context)
     }
 }
 

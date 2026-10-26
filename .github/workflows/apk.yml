@@ -63,7 +63,7 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
         run: >-
           ./gradlew --no-daemon testDebugUnitTest "$BUILD_TASK"
-          -PversionCode="$VERSION_CODE" -PversionName="1.9.$VERSION_CODE"
+          -PversionCode="$VERSION_CODE" -PversionName="1.10.$VERSION_CODE"
       - name: Nomear APK
         env:
           VARIANT: ${{ steps.signing.outputs.variant }}
@@ -71,13 +71,13 @@ jobs:
       - name: Publicar latest
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.9.${{ github.run_number }}
+          tag_name: v1.10.${{ github.run_number }}
           name: latest
           make_latest: true
           target_commitish: ${{ github.sha }}
           files: banco-cbr.apk
           fail_on_unmatched_files: true
-          body: Banco CBR 1.9.${{ github.run_number }} — APK ${{ steps.signing.outputs.variant }}.
+          body: Banco CBR 1.10.${{ github.run_number }} — APK ${{ steps.signing.outputs.variant }}.
       - name: Remover keystore temporário
         if: always()
         run: rm -f -- keystore.p12
