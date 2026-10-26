@@ -15,8 +15,8 @@ android {
         applicationId = "io.github.arturaragao.bancocbr"
         minSdk = 26
         targetSdk = 35
-        versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
-        versionName = providers.gradleProperty("versionName").orElse("1.1.0").get()
+        versionCode = providers.gradleProperty("versionCode").orElse("3").get().toInt()
+        versionName = providers.gradleProperty("versionName").orElse("1.9.0").get()
     }
 
     signingConfigs {
