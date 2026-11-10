@@ -36,7 +36,7 @@ Formato do resumo (de hoje até +35 dias):
   "mes": "2026-10"
 }
 ```
-`tipo`: estudo|ferramenta|tarefas. `noite`: BR|HSI|"". `tipoDia`: estudo|descanso|sobreaviso. `ev` e `agenda` entram nos avisos de evento. Urgências das 07h/13h vêm das tarefasHoje não feitas; tarefasSem aparecem no widget e não recebem uma data artificial. Resumo limitado a 1 MiB. Nenhuma consulta de rede em widgets ou workers (exceções: `UpdateWorker`, só a API pública de releases; `IdeaWorker`, só `ideias/caixa.md`).
+`tipo`: estudo|ferramenta|tarefas. `noite`: código da escala noturna definido pelo app web (vazio = nenhuma). `tipoDia`: estudo|descanso|sobreaviso. `ev` e `agenda` entram nos avisos de evento. Urgências das 07h/13h vêm das tarefasHoje não feitas; tarefasSem aparecem no widget e não recebem uma data artificial. Resumo limitado a 1 MiB. Nenhuma consulta de rede em widgets ou workers (exceções: `UpdateWorker`, só a API pública de releases; `IdeaWorker`, só `ideias/caixa.md`).
 
 ## Pedidos do Artur
 - Widget pequeno para adicionar tarefa (rápido, nativo, texto ou voz).
