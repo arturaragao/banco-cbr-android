@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Banco CBR</string>
+    <string name="app_name">Radio</string>
     <string name="widget_add_name">Adicionar tarefa</string>
     <string name="widget_tasks_name">Hoje</string>
     <string name="task_reminder">Lembrete de tarefa</string>

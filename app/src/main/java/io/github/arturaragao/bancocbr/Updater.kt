@@ -154,7 +154,7 @@ object Updater {
                         prefs.edit().putBoolean("installPending", true).apply()
                         activity.runOnUiThread {
                             if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-                            Toast.makeText(activity, "Permita \"instalar apps desconhecidos\" para o Banco CBR e volte.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(activity, "Permita \"instalar apps desconhecidos\" para o Radio e volte.", Toast.LENGTH_LONG).show()
                             runCatching {
                                 activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + activity.packageName)))
                             }.onFailure { reportError(context, it.message ?: "Não consegui abrir a permissão de instalação") }
@@ -222,7 +222,7 @@ object Updater {
         val file = apkFile(context)
         val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
             ?: run { file.delete(); error("APK inválido; baixo de novo na próxima vez") }
-        check(archive.packageName == context.packageName) { "APK não pertence ao Banco CBR" }
+        check(archive.packageName == context.packageName) { "APK não pertence ao Radio" }
         val code = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
         check(code == UpdateVersion.codeFromTag(tag)?.toLong() && code > BuildConfig.VERSION_CODE) { "Versão do APK inválida" }
         // O PackageInstaller valida a assinatura contra a versão instalada, inclusive rotação de chave.
@@ -312,7 +312,7 @@ object Updater {
         val open = Intent(context, MainActivity::class.java).putExtra(EXTRA, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pending = PendingIntent.getActivity(context, NOTIF_ID, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val text = "Versão ${release.tag.removePrefix("v")} disponível. Toque para atualizar."
-        if (notify(context, "Atualização do Banco CBR", text, pending)) prefs.edit().putString("notified", release.tag).apply()
+        if (notify(context, "Atualização do Radio", text, pending)) prefs.edit().putString("notified", release.tag).apply()
     }
 
     private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(
@@ -340,7 +340,7 @@ object Updater {
 
     private fun reportError(context: Context, reason: String) {
         Log.w("BancoCBR", "Atualização: $reason")
-        notify(context, "Falha ao atualizar Banco CBR", reason.take(180), openApp(context))
+        notify(context, "Falha ao atualizar Radio", reason.take(180), openApp(context))
     }
 
     internal fun onPackageReplaced(context: Context) {
@@ -355,7 +355,7 @@ object Updater {
             .remove("sessionId").remove("sessionTag").remove("stagedTag").remove("notified").remove("confirmation")
             .putBoolean("installPending", false).commit()
         apkFile(context).delete()
-        notify(context, "Banco CBR atualizado para ${tag.removePrefix("v")}", "Toque para abrir o app.", openApp(context))
+        notify(context, "Radio atualizado para ${tag.removePrefix("v")}", "Toque para abrir o app.", openApp(context))
     }
 
     @Suppress("DEPRECATION")
@@ -378,11 +378,11 @@ object Updater {
                 prefs.edit().putString("confirmation", confirmation.toUri(Intent.URI_INTENT_SCHEME)).apply()
                 // Se o Android bloquear a abertura em segundo plano, o toque abre diretamente o instalador.
                 val pending = PendingIntent.getActivity(context, id, confirmation, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                notify(context, "Atualização do Banco CBR", "Toque para confirmar a instalação.", pending)
+                notify(context, "Atualização do Radio", "Toque para confirmar a instalação.", pending)
                 runCatching { context.startActivity(confirmation) }
                     .onFailure {
                         Log.w("BancoCBR", "Confirme a instalação pela notificação", it)
-                        notify(context, "Confirme a atualização do Banco CBR", (it.message ?: "Toque para abrir o instalador.").take(180), pending)
+                        notify(context, "Confirme a atualização do Radio", (it.message ?: "Toque para abrir o instalador.").take(180), pending)
                     }
             }
             PackageInstaller.STATUS_SUCCESS -> reportSuccess(context, prefs.getString("sessionTag", null) ?: BuildConfig.VERSION_NAME)

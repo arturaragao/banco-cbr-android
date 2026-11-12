@@ -68,7 +68,7 @@ import java.util.concurrent.Executors
 /** Lógica pura (testada): formato das linhas de ideias/caixa.md. "- [ ]" = nova; o Claude no PC marca "[x]". */
 object Ideas {
     const val HEADER = "# Caixa de ideias do celular\n\n" +
-        "Gravadas pelo widget Ideia do app Banco CBR. \"- [ ]\" = nova; o Claude no PC oferece e marca \"[x]\".\n\n"
+        "Gravadas pelo widget Ideia do app Radio. \"- [ ]\" = nova; o Claude no PC oferece e marca \"[x]\".\n\n"
     private val formato = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
     fun line(text: String, at: LocalDateTime): String =

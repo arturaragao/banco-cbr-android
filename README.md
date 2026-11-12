@@ -1,4 +1,4 @@
-# Banco CBR
+# Radio
 
 App Android (8.0 ou superior) para o [Radio](https://arturaragao.github.io/radio/), com WebView, widgets e avisos locais. Sem Firebase ou servidor de notificações.
 
@@ -7,7 +7,11 @@ usam `/radio/`. A verificação existente pelo host `arturaragao.github.io` tamb
 aceita o caminho antigo `/banco-cbr-app2/`, cujo redirecionamento será publicado
 separadamente. O `applicationId` continua `io.github.arturaragao.bancocbr` para
 permitir atualizar a instalação existente com a mesma assinatura. A origem e os
-dados de localStorage/IndexedDB são preservados; a renomeação fica para o maestro.
+dados de localStorage/IndexedDB são preservados.
+
+O nome visível é Radio. O launcher usa o R de Georgia Bold convertido em path,
+âmbar `#f0a75a` sobre `#221e1a`, com o mesmo contorno no ícone monocromático.
+O R cabe na safe zone circular de 66dp; não depende de fonte no aparelho.
 
 ## Instalar
 
