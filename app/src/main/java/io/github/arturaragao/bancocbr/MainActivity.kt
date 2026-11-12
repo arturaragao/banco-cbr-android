@@ -23,6 +23,8 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
@@ -32,7 +34,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         webView = WebView(this).apply {
-            setBackgroundColor(Color.rgb(15, 23, 42))
+            setBackgroundColor(Color.rgb(34, 30, 26))
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true // Includes IndexedDB; the HTTPS origin also enables SW.
@@ -46,7 +48,7 @@ class MainActivity : ComponentActivity() {
                 javaScriptCanOpenWindowsAutomatically = false
             }
             CookieManager.getInstance().setAcceptCookie(true)
-            addJavascriptInterface(NativeBridge(applicationContext), "BCBRNativo")
+            addJavascriptInterface(NativeBridge(applicationContext, ::applyBarColor), "BCBRNativo")
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     if (isInternal(request.url)) return false
@@ -57,6 +59,7 @@ class MainActivity : ComponentActivity() {
                 // Copia a chave do GitHub do site (localStorage) para o widget Ideia enviar sem abrir o app.
                 override fun onPageFinished(view: WebView, url: String) {
                     if (Uri.parse(url).host != "arturaragao.github.io") return
+                    view.evaluateJavascript(BAR_COLOR_SCRIPT, null)
                     view.evaluateJavascript("localStorage.getItem('bcbr_gh_token')") { result ->
                         Ideas.tokenFromJs(result)?.let {
                             IdeaStore.saveToken(applicationContext, it)
@@ -123,6 +126,24 @@ class MainActivity : ComponentActivity() {
     private fun isInternal(uri: Uri): Boolean = uri.scheme == "https" &&
         (uri.host == "arturaragao.github.io" || uri.host == "api.github.com")
 
+    private fun applyBarColor(hex: String) {
+        if (!Regex("^#[0-9a-fA-F]{6}$").matches(hex)) return
+        val color = Color.parseColor(hex)
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            val page = Uri.parse(webView.url ?: return@runOnUiThread)
+            if (page.scheme != "https" || page.host != "arturaragao.github.io") return@runOnUiThread
+            window.statusBarColor = color
+            window.navigationBarColor = color
+            if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+            val darkIcons = ColorUtils.calculateLuminance(color) > 0.5
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                isAppearanceLightStatusBars = darkIcons
+                isAppearanceLightNavigationBars = darkIcons
+            }
+        }
+    }
+
     private fun openExternal(uri: Uri) {
         if (uri.scheme !in setOf("http", "https", "mailto", "tel")) return
         try {
@@ -171,10 +192,72 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val BASE_URL = "https://arturaragao.github.io/radio/"
+        private val BAR_COLOR_SCRIPT = """
+            (() => {
+                if (location.origin !== 'https://arturaragao.github.io') return;
+                if (window.__radioBarColors) window.__radioBarColors();
+                const canvas = document.createElement('canvas');
+                canvas.width = canvas.height = 1;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                const toHex = value => {
+                    if (!value || !CSS.supports('color', value)) return null;
+                    ctx.clearRect(0, 0, 1, 1);
+                    ctx.fillStyle = value;
+                    ctx.fillRect(0, 0, 1, 1);
+                    const rgba = ctx.getImageData(0, 0, 1, 1).data;
+                    if (rgba[3] !== 255) return null;
+                    return '#' + Array.from(rgba).slice(0, 3)
+                        .map(n => n.toString(16).padStart(2, '0')).join('');
+                };
+                let frame = 0;
+                let last = '';
+                const sync = () => {
+                    frame = 0;
+                    const meta = Array.from(document.querySelectorAll('meta[name="theme-color"]'))
+                        .find(el => !el.media || matchMedia(el.media).matches);
+                    const color = (meta && toHex(meta.content)) ||
+                        (document.body && toHex(getComputedStyle(document.body).backgroundColor)) ||
+                        toHex(getComputedStyle(document.documentElement).backgroundColor) || '#221e1a';
+                    if (color !== last) {
+                        window.BCBRNativo.corBarras(color);
+                        last = color;
+                    }
+                };
+                const schedule = () => {
+                    if (!frame) frame = requestAnimationFrame(sync);
+                };
+                const observer = new MutationObserver(schedule);
+                observer.observe(document.documentElement, { attributes: true, childList: true });
+                if (document.body) observer.observe(document.body, { attributes: true });
+                if (document.head) observer.observe(document.head, {
+                    attributes: true, childList: true, subtree: true,
+                    attributeFilter: ['content', 'name', 'media', 'href', 'rel']
+                });
+                const scheme = matchMedia('(prefers-color-scheme: dark)');
+                scheme.addEventListener('change', schedule);
+                document.addEventListener('transitionend', schedule);
+                window.__radioBarColors = () => {
+                    observer.disconnect();
+                    cancelAnimationFrame(frame);
+                    scheme.removeEventListener('change', schedule);
+                    document.removeEventListener('transitionend', schedule);
+                };
+                sync();
+            })();
+        """.trimIndent()
     }
 }
 
-class NativeBridge(private val context: android.content.Context) {
+class NativeBridge(
+    private val context: android.content.Context,
+    private val onBarColor: (String) -> Unit = {}
+) {
+    @JavascriptInterface
+    fun corBarras(hex: String) {
+        onBarColor(hex)
+    }
+
     @JavascriptInterface
     fun dados(json: String) {
         RefreshCoordinator.accept(context, json)
