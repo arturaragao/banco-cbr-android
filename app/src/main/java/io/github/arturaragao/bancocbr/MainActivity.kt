@@ -170,7 +170,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        const val BASE_URL = "https://arturaragao.github.io/banco-cbr-app2/"
+        const val BASE_URL = "https://arturaragao.github.io/radio/"
     }
 }
 
